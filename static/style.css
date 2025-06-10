@@ -1,0 +1,120 @@
+/* Simplified CSS for PDF Viewer */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  line-height: 1.6;
+  color: #333;
+  background-color: #f4f4f4;
+  padding: 20px;
+}
+
+h1, h2 {
+  margin-bottom: 20px;
+  color: #333;
+}
+
+form {
+  margin-bottom: 20px;
+}
+
+input[type="url"] {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+button {
+  background-color: #4285f4;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+button:hover {
+  background-color: #3367d6;
+}
+
+button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+#pdf-canvas {
+  border: 1px solid #ddd;
+  margin: 0 auto;
+  display: block;
+  max-width: 100%;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+#page-num {
+  font-weight: bold;
+}
+
+/* Text layer styles for selectable text */
+.textLayer {
+  position: absolute;
+  text-align: initial;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0.25;
+  line-height: 1;
+  -webkit-text-size-adjust: none;
+  -moz-text-size-adjust: none;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+}
+
+.textLayer span {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+
+.textLayer span[data-main-rotation="90"] {
+  transform-origin: 0 100%;
+}
+
+.textLayer span[data-main-rotation="180"] {
+  transform-origin: 100% 100%;
+}
+
+.textLayer span[data-main-rotation="270"] {
+  transform-origin: 100% 0;
+}
+
+/* Make text selectable when highlighted */
+.textLayer ::selection {
+  background: rgba(0, 0, 255, 0.3);
+}
+
+.textLayer ::-moz-selection {
+  background: rgba(0, 0, 255, 0.3);
+}
+
+/* Style for clickable references */
+.textLayer span:hover {
+  background-color: rgba(255, 255, 0, 0.2);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  #pdf-canvas {
+    width: 100%;
+    height: auto;
+  }
+}
