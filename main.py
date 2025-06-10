@@ -57,13 +57,13 @@ def download_arxiv_pdf(arxiv_url):
 
 @rt("/")
 def get():
-    return Titled("Simple PDF Viewer",
+    return Titled("Arxiv Buddy", 
         # Include both PDF.js main library and the worker
         Script(src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"),
         Link(rel="stylesheet", href="/static/style.css"),
         
         Div(
-            H1("Simple PDF Viewer", style="text-align: center; margin-bottom: 20px;"),
+            # H1("Arxiv Buddy", style="text-align: center; margin-bottom: 20px;"),
             
             # Form for entering ArXiv URL
             Form(
@@ -90,7 +90,7 @@ def get():
                 style="border: 1px solid #ddd; border-radius: 5px; margin-top: 20px; min-height: 200px;"
             ),
             
-            style="max-width: 800px; margin: 0 auto; padding: 20px;"
+            style="max-width: 800px; margin: 0 auto; padding: 20px; text-align: center;"
         ),
         
         # Initialize PDF.js worker

@@ -7,16 +7,16 @@ window.displayReferenceInfo = function(title, content, description) {
         // Show loading state first
         rightPane.innerHTML = `
             <h3>${title}</h3>
-            <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 10px 0;">
-                <strong>Reference Text:</strong><br>
-                <div style="margin-top: 8px; font-size: 14px; line-height: 1.4;">
-                    ${content}
-                </div>
-            </div>
-            <div id="paper-preview" style="margin-top: 20px;">
+            <div id="paper-preview" style="margin-top: 10px;">
                 <div style="display: flex; align-items: center; padding: 10px; background: #e3f2fd; border-radius: 5px;">
                     <div style="margin-right: 10px;">🔍</div>
                     <div>Loading paper preview...</div>
+                </div>
+            </div>
+            <div style="margin: 10px 0; padding: 4px 10px; background: #f9f9f9; border-left: 3px solid #ddd; border-radius: 3px;">
+                <div style="font-size: 11px; color: #888; margin-bottom: 4px;">CITATION:</div>
+                <div style="font-size: 12px; line-height: 1.1; color: #666; max-height: 45px; overflow-y: auto; overflow-x: hidden;">
+                    ${content}
                 </div>
             </div>
             <p style="color: #666; font-style: italic; margin-top: 15px;">${description}</p>
@@ -42,7 +42,7 @@ window.displayReferenceInfoFromUrl = async function(url) {
                     <a href="${url}" target="_blank" style="color: #1976d2; word-break: break-all;">${url}</a>
                 </div>
             </div>
-            <div id="paper-preview" style="margin-top: 20px;">
+            <div id="paper-preview" style="margin-top: 20px; max-height: 200px; overflow: hidden;">
                 <div style="display: flex; align-items: center; padding: 10px; background: #e3f2fd; border-radius: 5px;">
                     <div style="margin-right: 10px;">🔍</div>
                     <div>Analyzing URL and fetching paper info...</div>
@@ -391,15 +391,11 @@ function generateEnhancedPaperPreview(paperInfo, additionalInfo) {
     
     // Abstract
     if (additionalInfo.abstract) {
-        const abstractPreview = additionalInfo.abstract.length > 300 
-            ? additionalInfo.abstract.substring(0, 300) + '...'
-            : additionalInfo.abstract;
-        
         html += `
             <div style="margin: 15px 0; padding: 12px; background: #f8f9fa; border-left: 4px solid #1976d2; border-radius: 4px;">
                 <strong style="color: #1976d2;">Abstract:</strong><br>
-                <div style="margin-top: 8px; line-height: 1.4; color: #333; font-size: 14px;">
-                    ${abstractPreview}
+                <div style="margin-top: 8px; line-height: 1.4; color: #333; font-size: 14px; max-height: none; overflow: visible;">
+                    ${additionalInfo.abstract}
                 </div>
             </div>
         `;
@@ -413,9 +409,9 @@ function generateEnhancedPaperPreview(paperInfo, additionalInfo) {
     if (paperInfo.doi) {
         identifiers.push(`<a href="https://doi.org/${paperInfo.doi}" target="_blank" style="color: #1976d2; text-decoration: none;">🔗 DOI</a>`);
     }
-    if (paperInfo.url) {
-        identifiers.push(`<a href="${paperInfo.url}" target="_blank" style="color: #1976d2; text-decoration: none;">🌐 Link</a>`);
-    }
+    // if (paperInfo.url) {
+    //     identifiers.push(`<a href="${paperInfo.url}" target="_blank" style="color: #1976d2; text-decoration: none;">🌐 Link</a>`);
+    // }
     
     if (identifiers.length > 0) {
         html += `<p style="margin: 15px 0 5px 0; font-size: 13px; border-top: 1px solid #eee; padding-top: 10px;">${identifiers.join(' | ')}</p>`;

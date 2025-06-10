@@ -14,8 +14,8 @@ window.findAndDisplayReference = async function(annotation, pdf) {
             let targetDestination = null;
             
             // If dest[0] is a string (named destination), look it up
-            if (typeof dest[0] === 'string') {
-                const destName = dest[0];
+            if (typeof dest === 'string') {
+                const destName = dest;
                 console.log('Looking up named destination:', destName);
                 targetDestination = destinations[destName];
                 console.log('Found named destination:', targetDestination);
