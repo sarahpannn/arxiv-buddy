@@ -38,7 +38,7 @@ A modern web-based PDF viewer specifically designed for academic papers from ArX
 
 1. **Clone or download the project**
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/AnswerDotAI/arxiv-buddy.git
    cd arxiv-buddy
    ```
 
