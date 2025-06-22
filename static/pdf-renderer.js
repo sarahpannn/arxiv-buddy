@@ -61,8 +61,8 @@ window.renderPDF = async function(pdfUrl) {
         for (let pageNum = 1; pageNum <= numPages; pageNum++) {
             const page = await pdf.getPage(pageNum);
             
-            // Set the scale for rendering
-            const scale = 1.0;
+            // Set higher scale for crisp text rendering
+            const scale = 1.2 * (window.devicePixelRatio || 1);
             const viewport = page.getViewport({ scale });
 
             // Add page number label
@@ -87,19 +87,30 @@ window.renderPDF = async function(pdfUrl) {
             canvas.id = `pdf-canvas-${pageNum}`;
             const context = canvas.getContext('2d');
 
-            // Set the canvas dimensions
+            // Set the canvas dimensions for high-DPI rendering
             canvas.height = viewport.height;
             canvas.width = viewport.width;
             
-            // Style the canvas
+            // Calculate display dimensions
+            const displayWidth = viewport.width / scale;
+            const displayHeight = viewport.height / scale;
+            
+            // Style the canvas with proper display size
             canvas.style.maxWidth = '700px';
             canvas.style.maxHeight = '900px';
-            canvas.style.width = 'auto';
-            canvas.style.height = 'auto';
+            canvas.style.width = Math.min(displayWidth, 700) + 'px';
+            canvas.style.height = Math.min(displayHeight, 900) + 'px';
             canvas.style.display = 'block';
             canvas.style.margin = '0 auto';
             canvas.style.border = '1px solid #ccc';
             canvas.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+            canvas.style.imageRendering = 'crisp-edges';
+            canvas.style.imageRendering = '-webkit-optimize-contrast';
+            
+            // Enable anti-aliasing for smoother text
+            context.imageSmoothingEnabled = true;
+            context.imageSmoothingQuality = 'high';
+            context.textRenderingOptimization = 'optimizeQuality';
 
             // Create text layer container
             const textLayerDiv = document.createElement('div');
@@ -112,10 +123,10 @@ window.renderPDF = async function(pdfUrl) {
             textLayerDiv.style.overflow = 'hidden';
             textLayerDiv.style.opacity = '0.25';
             textLayerDiv.style.lineHeight = '1.0';
-            textLayerDiv.style.maxWidth = '600px';
+            textLayerDiv.style.maxWidth = '700px';
             textLayerDiv.style.maxHeight = '900px';
-            textLayerDiv.style.width = 'auto';
-            textLayerDiv.style.height = 'auto';
+            textLayerDiv.style.width = Math.min(displayWidth, 700) + 'px';
+            textLayerDiv.style.height = Math.min(displayHeight, 900) + 'px';
             textLayerDiv.style.margin = '0 auto';
 
             // Add canvas and text layer to page container

@@ -36,31 +36,39 @@ window.findAndDisplayReference = async function(annotation, pdf) {
                     const page = await pdf.getPage(destPageNum);
                     const textContent = await page.getTextContent();
                     
-                    // Show immediate feedback
-                    window.displayReferenceInfo(
-                        `Following Citation Link...`,
-                        `Navigating to page ${destPageNum} to find the reference text...`,
-                        'Following the internal PDF link using pdf.getDestinations().'
-                    );
+                    // Check if this is a figure reference by analyzing the destination content
+                    const figureInfo = await detectFigureAtDestination(textContent, targetDestination, page, pdf, destPageNum);
                     
-                    // Extract the actual reference text from the destination location
-                    const referenceText = await extractReferenceAtDestination(textContent, targetDestination, page);
-                    
-                    if (referenceText && referenceText.length > 20) {
-                        console.log('Found reference text:', referenceText.substring(0, 100) + '...');
-                        window.displayReferenceInfo(
-                            `Reference (Page ${destPageNum})`,
-                            referenceText,
-                            'Found by following the citation link to the bibliography.'
-                        );
+                    if (figureInfo) {
+                        console.log('Detected figure reference:', figureInfo);
+                        window.displayFigureInfo(figureInfo);
                     } else {
-                        console.log('Could not extract specific reference, showing page content');
-                        const allRefs = extractAllReferencesFromPage(textContent);
+                        // Show immediate feedback for non-figure references
                         window.displayReferenceInfo(
-                            `References Page ${destPageNum}`,
-                            allRefs,
-                            'Located the references page but could not isolate the specific reference.'
+                            `Following Citation Link...`,
+                            `Navigating to page ${destPageNum} to find the reference text...`,
+                            'Following the internal PDF link using pdf.getDestinations().'
                         );
+                        
+                        // Extract the actual reference text from the destination location
+                        const referenceText = await extractReferenceAtDestination(textContent, targetDestination, page);
+                        
+                        if (referenceText && referenceText.length > 20) {
+                            console.log('Found reference text:', referenceText.substring(0, 100) + '...');
+                            window.displayReferenceInfo(
+                                `Reference (Page ${destPageNum})`,
+                                referenceText,
+                                'Found by following the citation link to the bibliography.'
+                            );
+                        } else {
+                            console.log('Could not extract specific reference, showing page content');
+                            const allRefs = extractAllReferencesFromPage(textContent);
+                            window.displayReferenceInfo(
+                                `References Page ${destPageNum}`,
+                                allRefs,
+                                'Located the references page but could not isolate the specific reference.'
+                            );
+                        }
                     }
                 } else {
                     console.log('Could not find destination page from array:', targetDestination);
@@ -124,6 +132,243 @@ async function findDestinationPageFromArray(dest, pdf) {
         console.error('Error finding destination page from array:', error);
     }
     return null;
+}
+
+// Function to detect if destination is a figure and extract figure information
+async function detectFigureAtDestination(textContent, dest, page, pdf, pageNum) {
+    try {
+        console.log('=== FIGURE DETECTION DEBUG ===');
+        console.log('Page:', pageNum);
+        console.log('Destination:', dest);
+        
+        const textItems = textContent.items;
+        console.log('Total text items on page:', textItems.length);
+        
+        // Get destination coordinates if available
+        let targetY = null;
+        if (dest.length > 2 && typeof dest[2] === 'number') {
+            targetY = dest[2];
+            console.log('Target Y coordinate:', targetY);
+        }
+        
+        // First, let's see ALL text on the page for debugging
+        console.log('--- ALL TEXT ON PAGE ---');
+        const allPageText = textItems.map(item => item.str).join(' ');
+        console.log('Page text preview:', allPageText.substring(0, 300) + '...');
+        
+        // Look for ANY figure-related text on the entire page (more permissive)
+        let figureNumber = '';
+        let figureCaption = '';
+        let foundFigure = false;
+        
+        for (let i = 0; i < textItems.length; i++) {
+            const item = textItems[i];
+            const text = item.str.trim();
+            const lowerText = text.toLowerCase();
+            
+            console.log(`Checking text item ${i}: "${text}"`);
+            
+            // Look for figure indicators with various patterns
+            if (lowerText.includes('figure') || lowerText.includes('fig.') || lowerText.includes('fig ')) {
+                console.log('*** FOUND FIGURE TEXT:', text);
+                
+                // Try multiple regex patterns to match figure references
+                const patterns = [
+                    /(?:Figure|Fig\.?)\s*(\d+)[:\.]?\s*(.*)/i,
+                    /(?:Figure|Fig\.?)\s*(\d+)/i,
+                    /Fig\.\s*(\d+)/i,
+                    /Figure\s*(\d+)/i
+                ];
+                
+                for (const pattern of patterns) {
+                    const figMatch = text.match(pattern);
+                    if (figMatch) {
+                        console.log('*** PATTERN MATCHED:', pattern, figMatch);
+                        figureNumber = figMatch[1];
+                        figureCaption = figMatch[2] || '';
+                        foundFigure = true;
+                        
+                        // Collect caption text from surrounding items
+                        const startIdx = Math.max(0, i - 5);
+                        const endIdx = Math.min(textItems.length, i + 15);
+                        
+                        let contextText = '';
+                        for (let j = startIdx; j <= endIdx; j++) {
+                            if (j !== i) {
+                                contextText += ' ' + textItems[j].str;
+                            }
+                        }
+                        
+                        figureCaption = (figureCaption + ' ' + contextText).trim();
+                        if (figureCaption.length > 500) {
+                            figureCaption = figureCaption.substring(0, 500) + '...';
+                        }
+                        
+                        break;
+                    }
+                }
+                
+                if (foundFigure) break;
+            }
+        }
+        
+        if (foundFigure) {
+            console.log('*** FIGURE DETECTED ***');
+            console.log('Number:', figureNumber);
+            console.log('Caption:', figureCaption);
+            
+            const figureArea = await extractFigureArea(page, targetY);
+            
+            return {
+                type: 'figure',
+                number: figureNumber,
+                caption: figureCaption,
+                pageNumber: pageNum,
+                area: figureArea
+            };
+        }
+        
+        console.log('--- NO FIGURE DETECTED ---');
+        return null;
+    } catch (error) {
+        console.error('Error detecting figure at destination:', error);
+        return null;
+    }
+}
+
+// Function to extract figure area information (simplified)
+async function extractFigureArea(page, targetY) {
+    try {
+        // This is a simplified approach - in a full implementation,
+        // you would analyze the page's drawing operations or images
+        const viewport = page.getViewport({ scale: 1.0 });
+        
+        // Estimate figure area based on common academic paper layouts
+        const estimatedHeight = 200; // Approximate figure height
+        const estimatedWidth = 400;  // Approximate figure width
+        
+        return {
+            x: 50,
+            y: targetY ? targetY - estimatedHeight / 2 : viewport.height / 2,
+            width: estimatedWidth,
+            height: estimatedHeight
+        };
+    } catch (error) {
+        console.error('Error extracting figure area:', error);
+        return null;
+    }
+}
+
+// Function to display figure information in the right panel
+window.displayFigureInfo = function(figureInfo) {
+    console.log('=== DISPLAYING FIGURE INFO ===');
+    console.log('Figure info received:', figureInfo);
+    
+    const rightPane = document.getElementById('info-pane');
+    console.log('Right pane element:', rightPane);
+    
+    if (!rightPane) {
+        console.error('Could not find info-pane element!');
+        return;
+    }
+    
+    try {
+        const html = `
+            <div style="padding: 20px; font-family: Arial, sans-serif;">
+                <h3 style="margin: 0 0 15px 0; color: #333; border-bottom: 2px solid #007acc; padding-bottom: 10px;">
+                    Figure ${figureInfo.number || 'Unknown'}
+                </h3>
+                
+                <div style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                    <div style="width: 100%; height: 200px; background: #e9ecef; border-radius: 4px; display: flex; align-items: center; justify-content: center; margin-bottom: 15px;">
+                        <div style="text-align: center; color: #6c757d; font-size: 14px;">
+                            📊 Figure Preview<br>
+                            <small>(Image extraction not yet implemented)</small>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <strong style="color: #495057;">Caption:</strong>
+                        <p style="margin: 5px 0 0 0; color: #6c757d; line-height: 1.4;">
+                            ${figureInfo.caption || 'No caption found'}
+                        </p>
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <strong style="color: #495057;">Location:</strong>
+                        <span style="color: #6c757d; margin-left: 10px;">Page ${figureInfo.pageNumber}</span>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <strong style="color: #495057;">Referenced from:</strong>
+                        <span style="color: #6c757d; margin-left: 10px;">Current location</span>
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button onclick="window.jumpToFigure(${figureInfo.pageNumber})" 
+                                style="background: #007acc; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px;">
+                            Jump to Figure
+                        </button>
+                        <button onclick="window.viewFullSize('${figureInfo.number}')" 
+                                style="background: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px;">
+                            View Full Size
+                        </button>
+                    </div>
+                </div>
+                
+                <div style="background: #e8f4fd; border: 1px solid #bee5eb; border-radius: 4px; padding: 10px; font-size: 12px; color: #0c5460;">
+                    <strong>💡 Note:</strong> Figure detection is based on text analysis. Image extraction and enhanced preview features are coming soon.
+                </div>
+            </div>
+        `;
+        
+        console.log('Setting innerHTML...');
+        rightPane.innerHTML = html;
+        console.log('Figure info display completed successfully');
+        
+    } catch (error) {
+        console.error('Error setting figure info HTML:', error);
+        rightPane.innerHTML = `
+            <div style="padding: 20px; color: red;">
+                <h3>Error displaying figure</h3>
+                <p>There was an error displaying the figure information.</p>
+                <pre>${error.message}</pre>
+            </div>
+        `;
+    }
+}
+
+// Function to jump to figure location
+window.jumpToFigure = function(pageNumber) {
+    const targetCanvas = document.getElementById(`pdf-canvas-${pageNumber}`);
+    if (targetCanvas) {
+        targetCanvas.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // Add temporary highlight effect
+        const originalBorder = targetCanvas.style.border;
+        targetCanvas.style.border = '3px solid #007acc';
+        setTimeout(() => {
+            targetCanvas.style.border = originalBorder;
+        }, 2000);
+    }
+}
+
+// Function to view full size (placeholder)
+window.viewFullSize = function(figureNumber) {
+    alert(`Full size view for Figure ${figureNumber} - Coming soon!`);
+}
+
+// Test function to manually test figure display
+window.testFigureDisplay = function() {
+    console.log('Testing figure display...');
+    const testFigureInfo = {
+        type: 'figure',
+        number: '1',
+        caption: 'This is a test figure caption to verify the UI is working correctly.',
+        pageNumber: 1,
+        area: { x: 0, y: 0, width: 400, height: 200 }
+    };
+    window.displayFigureInfo(testFigureInfo);
 }
 
 // Function to extract reference text at a specific destination
