@@ -16,22 +16,11 @@ window.createLinkOverlays = function(annotations, pageContainer, canvas, viewpor
             const rect = annotation.rect;
             const [x1, y1, x2, y2] = rect;
             
-            // Debug logging for positioning
-            console.log('=== LINK OVERLAY POSITIONING DEBUG ===');
-            console.log('Annotation rect:', rect);
-            console.log('Viewport dimensions:', viewport.width, 'x', viewport.height);
-            console.log('Viewport scale:', viewport.scale);
-            console.log('Canvas internal size:', canvas.width, 'x', canvas.height);
-            console.log('Canvas display size:', canvas.offsetWidth, 'x', canvas.offsetHeight);
-            
             // Calculate the canvas's position within its container (accounting for centering)
             const containerWidth = pageContainer.offsetWidth;
             const canvasDisplayWidth = canvas.offsetWidth;
             const canvasDisplayHeight = canvas.offsetHeight;
             const canvasOffsetX = (containerWidth - canvasDisplayWidth) / 2;
-            
-            console.log('Container width:', containerWidth);
-            console.log('Canvas offset X:', canvasOffsetX);
             
             // Simple approach: scale annotation coordinates directly to display size
             // PDF base size = viewport.width / viewport.scale, viewport.height / viewport.scale
@@ -41,16 +30,11 @@ window.createLinkOverlays = function(annotations, pageContainer, canvas, viewpor
             const scaleX = canvasDisplayWidth / pdfBaseWidth;
             const scaleY = canvasDisplayHeight / pdfBaseHeight;
             
-            console.log('PDF base size:', pdfBaseWidth, 'x', pdfBaseHeight);
-            console.log('Scale factors:', scaleX, 'x', scaleY);
-            
             // PDF coordinates are from bottom-left, we need top-left relative to canvas
             const left = canvasOffsetX + (x1 * scaleX);
             const top = (pdfBaseHeight - y2) * scaleY;
             const width = (x2 - x1) * scaleX;
             const height = (y2 - y1) * scaleY;
-            
-            console.log('Calculated position:', { left, top, width, height });
             
             linkElement.style.left = `${left}px`;
             linkElement.style.top = `${top}px`;
