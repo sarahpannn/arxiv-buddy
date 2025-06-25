@@ -375,58 +375,92 @@ window.testFigureDisplay = function() {
 async function extractReferenceAtDestination(textContent, dest, page) {
     try {
         const textItems = textContent.items;
-        
+
         // Get destination coordinates if available
         let targetY = null;
         if (dest.length > 2 && typeof dest[2] === 'number') {
             targetY = dest[2]; // Y coordinate of destination
             console.log('Target Y coordinate:', targetY);
         }
-        
-        // Find text items near the destination coordinates
+
+        // --- New heuristic ---
+        if (targetY !== null) {
+            // Find the text item closest to the target Y position
+            let closestIndex = -1;
+            let closestDist = Infinity;
+
+            for (let i = 0; i < textItems.length; i++) {
+                const item = textItems[i];
+                if (!item.transform) continue;
+                const itemY = item.transform[5];
+                const dist = Math.abs(itemY - targetY);
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    closestIndex = i;
+                }
+            }
+
+            if (closestIndex !== -1 && closestDist < 60) {
+                let refText = textItems[closestIndex].str;
+                const baseY = textItems[closestIndex].transform[5];
+
+                for (let j = closestIndex + 1; j < textItems.length; j++) {
+                    const nextItem = textItems[j];
+                    if (!nextItem.transform) break;
+
+                    const nextY = nextItem.transform[5];
+                    if (Math.abs(nextY - baseY) > 70) break;
+
+                    refText += ' ' + nextItem.str;
+                    if (refText.length > 800) break;
+                }
+
+                if (refText.trim().length > 20) {
+                    return refText.trim();
+                }
+            }
+        }
+
+        // --- Fallback: previous number-based logic ---
         let candidateRefs = [];
-        
+
         for (let i = 0; i < textItems.length; i++) {
             const item = textItems[i];
             const text = item.str;
-            
+
             // Look for reference number patterns
             if (text.match(/^\[\d+\]/) || text.match(/^\d+\./) || text.match(/^\(\d+\)/)) {
                 console.log('Found reference starter:', text, 'at Y:', item.transform[5]);
-                
-                // If we have a target Y, check if this is close to it
+
                 let isNearTarget = true;
                 if (targetY !== null && item.transform && item.transform[5]) {
                     const itemY = item.transform[5];
                     const distance = Math.abs(itemY - targetY);
-                    isNearTarget = distance < 50; // Within 50 units
+                    isNearTarget = distance < 50;
                     console.log(`Y distance: ${distance}, near target: ${isNearTarget}`);
                 }
-                
+
                 if (isNearTarget) {
-                    // Collect this and following text to form complete reference
                     let fullRef = text;
                     for (let j = i + 1; j < Math.min(i + 50, textItems.length); j++) {
                         const nextItem = textItems[j];
                         const nextText = nextItem.str;
-                        
-                        // Stop if we hit the next reference number
+
                         if (nextText.match(/^\[\d+\]/) || nextText.match(/^\d+\./) || nextText.match(/^\(\d+\)/)) {
                             break;
                         }
-                        
-                        // Stop if we move too far down the page
+
                         if (targetY !== null && nextItem.transform && nextItem.transform[5]) {
                             const nextY = nextItem.transform[5];
                             if (Math.abs(nextY - targetY) > 100) {
                                 break;
                             }
                         }
-                        
+
                         fullRef += ' ' + nextText;
-                        if (fullRef.length > 1000) break; // Reasonable limit
+                        if (fullRef.length > 1000) break;
                     }
-                    
+
                     candidateRefs.push({
                         text: fullRef.trim(),
                         distance: targetY !== null && item.transform ? Math.abs(item.transform[5] - targetY) : 0
@@ -434,17 +468,16 @@ async function extractReferenceAtDestination(textContent, dest, page) {
                 }
             }
         }
-        
-        // Return the reference closest to the target coordinates
+
         if (candidateRefs.length > 0) {
             candidateRefs.sort((a, b) => a.distance - b.distance);
             console.log('Found', candidateRefs.length, 'candidate references, using closest');
             return candidateRefs[0].text;
         }
-        
-        // Fallback: return the first substantial reference-like text on the page
+
+        // Final fallback: return best reference-like text on the page
         return findBestReferenceOnPage(textContent);
-        
+
     } catch (error) {
         console.error('Error extracting reference at destination:', error);
         return null;
@@ -454,41 +487,35 @@ async function extractReferenceAtDestination(textContent, dest, page) {
 // Function to find the best reference on a page (fallback)
 function findBestReferenceOnPage(textContent) {
     const textItems = textContent.items;
-    
-    // Look for the longest reference-like text block
-    let bestRef = '';
-    let currentRef = '';
-    
+
+    // Reconstruct lines based on Y position
+    let lines = [];
+    let currentLine = '';
+    let lastY = null;
+
     for (let i = 0; i < textItems.length; i++) {
         const item = textItems[i];
-        const text = item.str;
-        
-        // Start of a new reference
-        if (text.match(/^\[\d+\]/) || text.match(/^\d+\./)) {
-            // Save previous reference if it was substantial
-            if (currentRef.length > bestRef.length && currentRef.length > 50) {
-                bestRef = currentRef.trim();
+        if (!item.transform) continue;
+        const y = item.transform[5];
+
+        if (lastY !== null && Math.abs(y - lastY) > 15) {
+            if (currentLine.trim().length > 0) {
+                lines.push(currentLine.trim());
             }
-            currentRef = text;
-        } else if (currentRef) {
-            // Continue building current reference
-            currentRef += ' ' + text;
-            if (currentRef.length > 1000) {
-                // Save this reference and start fresh
-                if (currentRef.length > bestRef.length) {
-                    bestRef = currentRef.trim();
-                }
-                currentRef = '';
-            }
+            currentLine = item.str;
+        } else {
+            currentLine += ' ' + item.str;
         }
+
+        lastY = y;
     }
-    
-    // Check the last reference
-    if (currentRef.length > bestRef.length && currentRef.length > 50) {
-        bestRef = currentRef.trim();
+
+    if (currentLine.trim().length > 0) {
+        lines.push(currentLine.trim());
     }
-    
-    return bestRef || 'Could not extract reference text from this page.';
+
+    lines.sort((a, b) => b.length - a.length);
+    return lines[0] || 'Could not extract reference text from this page.';
 }
 
 // Function to extract all references from a page for debugging
