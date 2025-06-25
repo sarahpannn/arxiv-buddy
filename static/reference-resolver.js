@@ -113,219 +113,203 @@ async function findDestinationPageFromArray(dest, pdf) {
     return null;
 }
 
-// Function to detect if destination is a figure and extract figure information
+// Function to detect if destination is content (figure, table, algorithm, equation, appendix) and extract information
 async function detectFigureAtDestination(textContent, dest, page, pdf, pageNum) {
     try {
         const textItems = textContent.items;
         
         // Get destination coordinates if available
         let targetY = null;
-        // if (dest.length > 2 && typeof dest[2] === 'number') {
-        //     targetY = dest[2];
-        //     console.log('Target Y coordinate:', targetY);
-        // }
         if (dest[1] === 'XYZ' && dest.length > 3 && typeof dest[3] === 'number') {
             targetY = dest[3];
         } else if (dest.length > 2 && typeof dest[2] === 'number') {
             targetY = dest[2];
         }
 
-        
         // First, let's see ALL text on the page for debugging
         console.log('--- ALL TEXT ON PAGE ---');
         const allPageText = textItems.map(item => item.str).join(' ');
         console.log('Page text preview:', allPageText.substring(0, 300) + '...');
         
-        // Look for ANY figure-related text on the entire page (more permissive)
-        let figureNumber = '';
-        let figureCaption = '';
-        let foundFigure = false;
+        // Check if this is a citation/reference (we want to exclude these)
+        const isCitation = allPageText.toLowerCase().includes('reference') || 
+                          allPageText.toLowerCase().includes('bibliograph') ||
+                          allPageText.toLowerCase().includes('citation') ||
+                          /\[\d+\]/.test(allPageText) && allPageText.length < 1000; // Short pages with citation patterns
+        
+        if (isCitation) {
+            console.log('--- DETECTED CITATION/REFERENCE PAGE - SKIPPING ---');
+            return null;
+        }
+        
+        // Look for content indicators (figures, tables, algorithms, equations, appendix)
+        let contentType = null;
+        let contentNumber = '';
+        let contentCaption = '';
+        let foundContent = false;
+        
+        const contentPatterns = [
+            { type: 'figure', patterns: [
+                /(?:Figure|Fig\.?)\s*(\d+)[:\.]?\s*(.*)/i,
+                /(?:Figure|Fig\.?)\s*(\d+)/i,
+                /Fig\.\s*(\d+)/i,
+                /Figure\s*(\d+)/i
+            ]},
+            { type: 'table', patterns: [
+                /(?:Table|Tab\.?)\s*(\d+)[:\.]?\s*(.*)/i,
+                /(?:Table|Tab\.?)\s*(\d+)/i,
+                /Tab\.\s*(\d+)/i,
+                /Table\s*(\d+)/i
+            ]},
+            { type: 'algorithm', patterns: [
+                /(?:Algorithm|Alg\.?)\s*(\d+)[:\.]?\s*(.*)/i,
+                /(?:Algorithm|Alg\.?)\s*(\d+)/i,
+                /Alg\.\s*(\d+)/i,
+                /Algorithm\s*(\d+)/i
+            ]},
+            { type: 'equation', patterns: [
+                /(?:Equation|Eq\.?)\s*(\d+)[:\.]?\s*(.*)/i,
+                /(?:Equation|Eq\.?)\s*(\d+)/i,
+                /Eq\.\s*(\d+)/i,
+                /Equation\s*(\d+)/i,
+                /\(\d+\)/
+            ]},
+            { type: 'appendix', patterns: [
+                /(?:Appendix|App\.?)\s*([A-Z])[:\.]?\s*(.*)/i,
+                /(?:Appendix|App\.?)\s*([A-Z])/i,
+                /App\.\s*([A-Z])/i,
+                /Appendix\s*([A-Z])/i
+            ]}
+        ];
         
         for (let i = 0; i < textItems.length; i++) {
             const item = textItems[i];
             const text = item.str.trim();
             const lowerText = text.toLowerCase();
             
-            // console.log(`Checking text item ${i}: "${text}"`);
-            
-            // Look for figure indicators with various patterns
-            if (lowerText.includes('figure') || lowerText.includes('fig.') || lowerText.includes('fig ')) {
-                console.log('*** FOUND FIGURE TEXT:', text);
+            // Check each content type
+            for (const contentDef of contentPatterns) {
+                const hasKeyword = contentDef.type === 'figure' ? 
+                    (lowerText.includes('figure') || lowerText.includes('fig.') || lowerText.includes('fig ')) :
+                    contentDef.type === 'table' ?
+                    (lowerText.includes('table') || lowerText.includes('tab.')) :
+                    contentDef.type === 'algorithm' ?
+                    (lowerText.includes('algorithm') || lowerText.includes('alg.')) :
+                    contentDef.type === 'equation' ?
+                    (lowerText.includes('equation') || lowerText.includes('eq.') || /\(\d+\)/.test(text)) :
+                    contentDef.type === 'appendix' ?
+                    (lowerText.includes('appendix') || lowerText.includes('app.')) :
+                    false;
                 
-                // Try multiple regex patterns to match figure references
-                const patterns = [
-                    /(?:Figure|Fig\.?)\s*(\d+)[:\.]?\s*(.*)/i,
-                    /(?:Figure|Fig\.?)\s*(\d+)/i,
-                    /Fig\.\s*(\d+)/i,
-                    /Figure\s*(\d+)/i
-                ];
-                
-                for (const pattern of patterns) {
-                    const figMatch = text.match(pattern);
-                    if (figMatch) {
-                        console.log('*** PATTERN MATCHED:', pattern, figMatch);
-                        figureNumber = figMatch[1];
-                        figureCaption = figMatch[2] || '';
-                        foundFigure = true;
-                        
-                        // Collect caption text from surrounding items
-                        const startIdx = Math.max(0, i - 5);
-                        const endIdx = Math.min(textItems.length, i + 15);
-                        
-                        let contextText = '';
-                        for (let j = startIdx; j <= endIdx; j++) {
-                            if (j !== i) {
-                                contextText += ' ' + textItems[j].str;
+                if (hasKeyword) {
+                    console.log(`*** FOUND ${contentDef.type.toUpperCase()} TEXT:`, text);
+                    
+                    for (const pattern of contentDef.patterns) {
+                        const match = text.match(pattern);
+                        if (match) {
+                            console.log('*** PATTERN MATCHED:', pattern, match);
+                            contentType = contentDef.type;
+                            contentNumber = match[1];
+                            contentCaption = match[2] || '';
+                            foundContent = true;
+                            
+                            // Collect caption text from surrounding items
+                            const startIdx = Math.max(0, i - 5);
+                            const endIdx = Math.min(textItems.length, i + 15);
+                            
+                            let contextText = '';
+                            for (let j = startIdx; j <= endIdx; j++) {
+                                if (j !== i) {
+                                    contextText += ' ' + textItems[j].str;
+                                }
                             }
+                            
+                            contentCaption = (contentCaption + ' ' + contextText).trim();
+                            if (contentCaption.length > 1000) {
+                                contentCaption = contentCaption.substring(0, 1000) + '...';
+                            }
+                            
+                            break;
                         }
-                        
-                        figureCaption = (figureCaption + ' ' + contextText).trim();
-                        if (figureCaption.length > 500) {
-                            figureCaption = figureCaption.substring(0, 500) + '...';
-                        }
-                        
-                        break;
                     }
+                    
+                    if (foundContent) break;
                 }
-                
-                if (foundFigure) break;
             }
+            
+            if (foundContent) break;
         }
         
-        if (foundFigure) {
-            console.log('*** FIGURE DETECTED ***');
-            console.log('Number:', figureNumber);
-            console.log('Caption:', figureCaption);
+        if (foundContent) {
+            console.log(`*** ${contentType.toUpperCase()} DETECTED ***`);
+            console.log('Number:', contentNumber);
+            console.log('Caption:', contentCaption);
             
-            const figureArea = await extractFigureArea(page, targetY);
+            const contentArea = await extractFigureArea(page, targetY);
             
             return {
-                type: 'figure',
-                number: figureNumber,
-                caption: figureCaption,
+                type: contentType,
+                number: contentNumber,
+                caption: contentCaption,
                 pageNumber: pageNum,
-                area: figureArea
+                area: contentArea
             };
         }
         
-        console.log('--- NO FIGURE DETECTED ---');
+        console.log('--- NO CONTENT DETECTED ---');
         return null;
     } catch (error) {
-        console.error('Error detecting figure at destination:', error);
+        console.error('Error detecting content at destination:', error);
         return null;
     }
 }
 
+async function renderFullPageToImage(page, scale = 2) {
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d');
+
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    return {
+        dataUrl: canvas.toDataURL('image/png'),
+        width: viewport.width,
+        height: viewport.height,
+    };
+}
+
 // Function to extract figure area and images from the page
 async function extractFigureArea(page, targetY) {
-    try {
-        console.log('=== EXTRACTING FIGURE IMAGES ===');
-        const viewport = page.getViewport({ scale: 1.0 });
-        
-        // Extract images from the page using multiple methods
-        console.log('Trying primary image extraction method...');
-        let images = await extractImagesFromPage(page);
-        console.log('Primary method found', images.length, 'images');
-        
-        // Always try alternative method since primary usually fails
-        console.log('Trying alternative canvas-based extraction...');
-        try {
-            const canvasImages = await extractImagesFromCanvas(page, targetY);
-            console.log('Alternative method found', canvasImages.length, 'images');
-            if (canvasImages.length > 0) {
-                images = canvasImages; // Replace primary results with canvas results
-            }
-        } catch (altError) {
-            console.error('Alternative extraction failed:', altError);
-        }
-        
-        let figureImage = null;
-        let figureArea = null;
-        
-        console.log('Final images array:', images);
-        console.log('Images array length:', images.length);
-        
-        if (images.length > 0) {
-            console.log('Processing', images.length, 'extracted images...');
-            
-            // If we have a target Y coordinate, find the closest image
-            if (targetY !== null) {
-                console.log('Finding closest image to targetY:', targetY);
-                let closestImage = null;
-                let minDistance = Infinity;
-                
-                for (const img of images) {
-                    const distance = Math.abs(img.y - targetY);
-                    console.log('Image at y:', img.y, 'distance:', distance, 'has dataUrl:', !!img.dataUrl);
-                    if (distance < minDistance) {
-                        minDistance = distance;
-                        closestImage = img;
-                    }
-                }
-                
-                console.log('Closest image:', closestImage, 'minDistance:', minDistance);
-                
-                if (closestImage && minDistance < 200) {
-                    figureImage = closestImage.dataUrl;
-                    figureArea = {
-                        x: closestImage.x,
-                        y: closestImage.y,
-                        width: closestImage.width,
-                        height: closestImage.height
-                    };
-                    console.log('Using closest image, dataUrl length:', figureImage ? figureImage.length : 'null');
-                } else {
-                    console.log('No close image found or closest is too far');
-                }
-            } else {
-                console.log('No targetY, using largest image');
-                // No target Y, use the largest image
-                const largestImage = images.reduce((largest, current) => 
-                    (current.width * current.height) > (largest.width * largest.height) ? current : largest
-                );
-                
-                console.log('Largest image:', largestImage, 'has dataUrl:', !!largestImage.dataUrl);
-                
-                figureImage = largestImage.dataUrl;
-                figureArea = {
-                    x: largestImage.x,
-                    y: largestImage.y,
-                    width: largestImage.width,
-                    height: largestImage.height
-                };
-                console.log('Using largest image, dataUrl length:', figureImage ? figureImage.length : 'null');
-            }
-        } else {
-            console.log('No images found in extraction');
-        }
-        
-        // Fallback to estimated area if no images found
-        if (!figureArea) {
-            figureArea = {
-                x: 50,
-                y: targetY ? targetY - 100 : viewport.height / 2,
-                width: 400,
-                height: 200
-            };
-        }
-        
-        console.log('=== FINAL FIGURE AREA RESULT ===');
-        console.log('Figure area:', figureArea);
-        console.log('Figure image data URL length:', figureImage ? figureImage.length : 'null');
-        console.log('Has image:', !!figureImage);
-        
+    const pageIndex = page._pageIndex ?? (await page.getPageIndex(page));
+    const domCanvas = document.getElementById(`pdf-canvas-${pageIndex + 1}`);
+
+    if (domCanvas) {
+        const clone = document.createElement('canvas');
+        clone.width = domCanvas.width;
+        clone.height = domCanvas.height;
+        clone.getContext('2d').drawImage(domCanvas, 0, 0);
+
         return {
-            ...figureArea,
-            imageDataUrl: figureImage
+            x: 0,
+            y: 0,
+            width: domCanvas.width,
+            height: domCanvas.height,
+            imageDataUrl: clone.toDataURL('image/png'),
         };
-        
-    } catch (error) {
-        console.error('Error extracting figure area:', error);
+    }
+
+    try {
+        const { dataUrl, width, height } = await renderFullPageToImage(page, 2);
+        return { x: 0, y: 0, width, height, imageDataUrl: dataUrl };
+    } catch (err) {
+        console.error('Error rendering full page to image:', err);
         return {
-            x: 50,
-            y: 100,
-            width: 400,
-            height: 200,
+            x: 0,
+            y: 0,
+            width: page.getViewport({ scale: 1 }).width,
+            height: page.getViewport({ scale: 1 }).height,
             imageDataUrl: null
         };
     }
@@ -447,169 +431,6 @@ async function convertImageToDataUrl(imgObj) {
     }
 }
 
-// Alternative method: Extract image by rendering a portion of the page to canvas
-async function extractImagesFromCanvas(page, targetY = null) {
-    try {
-        console.log('=== CANVAS-BASED IMAGE EXTRACTION ===');
-        console.log('Target Y coordinate:', targetY);
-        
-        // Create a high-resolution canvas for the page
-        const scale = 2.0;
-        const viewport = page.getViewport({ scale });
-        
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
-        
-        // Render the page to canvas
-        console.log('Rendering page to canvas...');
-        const renderContext = {
-            canvasContext: context,
-            viewport: viewport
-        };
-        
-        await page.render(renderContext).promise;
-        console.log('Page rendered to canvas successfully');
-        
-        // Try to detect figure regions using multiple methods
-        const figureRegions = await detectFigureRegions(canvas, page, targetY);
-        console.log('Detected', figureRegions.length, 'figure regions');
-        
-        const images = [];
-        
-        // Extract each detected figure region
-        for (let i = 0; i < figureRegions.length; i++) {
-            const region = figureRegions[i];
-            console.log('Extracting region:', region);
-            
-            // Create a cropped canvas for this region
-            const croppedCanvas = document.createElement('canvas');
-            const croppedCtx = croppedCanvas.getContext('2d');
-            
-            croppedCanvas.width = region.width;
-            croppedCanvas.height = region.height;
-            
-            // Copy the region from the main canvas
-            console.log('Cropping canvas region:', {
-                sourceX: region.x, 
-                sourceY: region.y, 
-                sourceW: region.width, 
-                sourceH: region.height,
-                destW: region.width,
-                destH: region.height,
-                canvasW: canvas.width,
-                canvasH: canvas.height
-            });
-            
-            let dataUrl = null;
-            try {
-                croppedCtx.drawImage(
-                    canvas,
-                    region.x, region.y, region.width, region.height,  // source
-                    0, 0, region.width, region.height                  // destination
-                );
-                
-                dataUrl = croppedCanvas.toDataURL();
-                console.log('Canvas cropping result:', dataUrl ? 'Success' : 'Failed');
-                console.log('DataURL length:', dataUrl ? dataUrl.length : 'null');
-                console.log('Cropped canvas dimensions:', croppedCanvas.width, 'x', croppedCanvas.height);
-                
-                // Log the image for debugging - you can right-click to open in new tab
-                if (dataUrl) {
-                    console.log('🖼️ Extracted image preview (right-click to open):');
-                    console.log(dataUrl);
-                }
-            } catch (cropError) {
-                console.error('Error cropping canvas:', cropError);
-                dataUrl = null;
-            }
-            
-            images.push({
-                dataUrl: dataUrl,
-                x: region.x / scale,
-                y: region.y / scale,
-                width: region.width / scale,
-                height: region.height / scale,
-                name: `figure-region-${i}`,
-                confidence: region.confidence || 0.5
-            });
-        }
-        
-        // If no specific regions found, return a smart crop of the middle area
-        if (images.length === 0) {
-            console.log('No specific regions found, using smart middle crop');
-            const cropRegion = getSmartCropRegion(canvas, targetY, scale);
-            
-            const croppedCanvas = document.createElement('canvas');
-            const croppedCtx = croppedCanvas.getContext('2d');
-            croppedCanvas.width = cropRegion.width;
-            croppedCanvas.height = cropRegion.height;
-            
-            console.log('Smart crop region:', cropRegion);
-            
-            let dataUrl = null;
-            try {
-                croppedCtx.drawImage(
-                    canvas,
-                    cropRegion.x, cropRegion.y, cropRegion.width, cropRegion.height,
-                    0, 0, cropRegion.width, cropRegion.height
-                );
-                
-                dataUrl = croppedCanvas.toDataURL();
-                console.log('Smart crop result:', dataUrl ? 'Success' : 'Failed');
-                console.log('Smart crop canvas dimensions:', croppedCanvas.width, 'x', croppedCanvas.height);
-                
-                // Log the smart crop image for debugging
-                if (dataUrl) {
-                    console.log('🖼️ Smart crop image preview (right-click to open):');
-                    console.log(dataUrl);
-                }
-            } catch (cropError) {
-                console.error('Error in smart crop:', cropError);
-                dataUrl = null;
-            }
-            
-            images.push({
-                dataUrl: dataUrl,
-                x: cropRegion.x / scale,
-                y: cropRegion.y / scale,
-                width: cropRegion.width / scale,
-                height: cropRegion.height / scale,
-                name: 'smart-crop'
-            });
-        }
-        
-        return images;
-        
-    } catch (error) {
-        console.error('Error in canvas-based extraction:', error);
-        return [];
-    }
-}
-
-// Function to detect figure regions in the rendered canvas
-async function detectFigureRegions(canvas, page, targetY) {
-    try {
-        const regions = [];
-        const context = canvas.getContext('2d');
-        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-        
-        // Method 1: Look for white/light background areas surrounded by content
-        // This is a simplified approach - in a full implementation you'd use
-        // more sophisticated computer vision techniques
-        
-        // Method 2: Use text content to identify figure areas
-        const textContent = await page.getTextContent();
-        const figureAreas = await identifyFigureAreasFromText(textContent, canvas, targetY);
-        
-        return figureAreas;
-        
-    } catch (error) {
-        console.error('Error detecting figure regions:', error);
-        return [];
-    }
-}
 
 // Function to identify figure areas based on text content analysis
 async function identifyFigureAreasFromText(textContent, canvas, targetY) {

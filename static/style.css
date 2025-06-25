@@ -118,3 +118,11 @@ button:disabled {
     height: auto;
   }
 }
+
+#citation-preview img,        /* whatever selector your preview <img> uses */
+.figure-pane img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;        /* keeps aspect ratio */
+}
