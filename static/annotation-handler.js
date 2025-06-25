@@ -1,7 +1,7 @@
 // PDF annotation and link handling functionality
 
 // Function to create link overlays with proper positioning
-window.createLinkOverlays = function(annotations, pageContainer, canvas, viewport, pdf) {
+window.createLinkOverlays = function(annotations, pageContainer, canvas, viewport, pdf, pageNum, textContent) {
     // Process annotations and create clickable overlays
     annotations.forEach(annotation => {
         if (annotation.subtype === 'Link') {
@@ -61,7 +61,7 @@ window.createLinkOverlays = function(annotations, pageContainer, canvas, viewpor
             linkElement.addEventListener('click', function(event) {
                 event.preventDefault();
                 console.log('PDF Link clicked:', annotation);
-                
+
                 if (annotation.url) {
                     // External URL - use the URL directly for enhanced preview
                     console.log('External URL clicked:', annotation.url);
@@ -69,7 +69,9 @@ window.createLinkOverlays = function(annotations, pageContainer, canvas, viewpor
                 } else if (annotation.dest) {
                     // Internal link (like to references)
                     console.log('Internal link destination:', annotation.dest);
-                    window.findAndDisplayReference(annotation, pdf);
+                    const lastName = extractLastNameNearAnnotation(annotation, textContent.items);
+                    console.log('Extracted citing last name:', lastName);
+                    window.findAndDisplayReference(annotation, pdf, lastName);
                 } else if (annotation.action) {
                     // Action-based link
                     console.log('Link action:', annotation.action);
@@ -147,4 +149,26 @@ window.extractCitationNumbers = function(text) {
     }
     
     return numbers;
+}
+
+// Helper to grab a likely author last name near the citation
+function extractLastNameNearAnnotation(annotation, textItems) {
+    if (!annotation.rect || !textItems) return null;
+    const [x1, y1, x2, y2] = annotation.rect;
+    const centerY = (y1 + y2) / 2;
+    let line = '';
+
+    for (const item of textItems) {
+        if (!item.transform) continue;
+        const y = item.transform[5];
+        if (Math.abs(y - centerY) < 10) {
+            line += ' ' + item.str;
+        }
+    }
+
+    line = line.trim();
+    if (line.length === 0) return null;
+
+    const match = line.match(/([A-Z][a-zA-Z]{2,})/);
+    return match ? match[1] : null;
 }

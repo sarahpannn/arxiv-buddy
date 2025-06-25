@@ -1,7 +1,7 @@
 // Reference resolution and destination handling
 
 // Function to find and display reference for internal links
-window.findAndDisplayReference = async function(annotation, pdf) {
+window.findAndDisplayReference = async function(annotation, pdf, citingLastName) {
     try {
         const dest = annotation.dest;
         console.log('Citation clicked - destination:', dest);
@@ -51,7 +51,7 @@ window.findAndDisplayReference = async function(annotation, pdf) {
                         );
                         
                         // Extract the actual reference text from the destination location
-                        const referenceText = await extractReferenceAtDestination(textContent, targetDestination, page);
+                        const referenceText = await extractReferenceAtDestination(textContent, targetDestination, page, citingLastName);
                         
                         if (referenceText && referenceText.length > 20) {
                             console.log('Found reference text:', referenceText.substring(0, 100) + '...');
@@ -372,7 +372,7 @@ window.testFigureDisplay = function() {
 }
 
 // Function to extract reference text at a specific destination
-async function extractReferenceAtDestination(textContent, dest, page) {
+async function extractReferenceAtDestination(textContent, dest, page, citingLastName) {
     try {
         const textItems = textContent.items;
 
@@ -470,13 +470,21 @@ async function extractReferenceAtDestination(textContent, dest, page) {
         }
 
         if (candidateRefs.length > 0) {
+            if (citingLastName) {
+                const lowerName = citingLastName.toLowerCase();
+                for (const ref of candidateRefs) {
+                    if (ref.text.toLowerCase().includes(lowerName)) {
+                        return ref.text;
+                    }
+                }
+            }
             candidateRefs.sort((a, b) => a.distance - b.distance);
             console.log('Found', candidateRefs.length, 'candidate references, using closest');
             return candidateRefs[0].text;
         }
 
         // Final fallback: return best reference-like text on the page
-        return findBestReferenceOnPage(textContent);
+        return findBestReferenceOnPage(textContent, citingLastName);
 
     } catch (error) {
         console.error('Error extracting reference at destination:', error);
@@ -485,7 +493,7 @@ async function extractReferenceAtDestination(textContent, dest, page) {
 }
 
 // Function to find the best reference on a page (fallback)
-function findBestReferenceOnPage(textContent) {
+function findBestReferenceOnPage(textContent, citingLastName) {
     const textItems = textContent.items;
 
     // Reconstruct lines based on Y position
@@ -512,6 +520,15 @@ function findBestReferenceOnPage(textContent) {
 
     if (currentLine.trim().length > 0) {
         lines.push(currentLine.trim());
+    }
+
+    if (citingLastName) {
+        const lowerName = citingLastName.toLowerCase();
+        for (const line of lines) {
+            if (line.toLowerCase().includes(lowerName)) {
+                return line;
+            }
+        }
     }
 
     lines.sort((a, b) => b.length - a.length);
