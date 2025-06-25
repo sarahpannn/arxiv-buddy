@@ -126,8 +126,13 @@ def load_paper(arxiv_url: str):
                 Script(src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.mjs', type='module'),
                 Script(src='/static/pdf-renderer.js', type='module'),
                 Script(src='/static/annotation-handler.js', type='module'),
+                Script(src='/static/destination-handler.js', type='module'),
+                Script(src='/static/figure-detection.js', type='module'),
+                Script(src='/static/reference-extraction.js', type='module'),
+                Script(src='/static/figure-display.js', type='module'),
                 Script(src='/static/reference-resolver.js', type='module'),
                 Script(src='/static/paper-preview.js', type='module'),
+                Script(src='/static/test-utilities.js', type='module'),
                 Script(src='/static/pdf-viewer.js', type='module'),
                 Script(f"""
                     // Wait for the page to load, then call renderPDF
