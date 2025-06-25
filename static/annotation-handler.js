@@ -44,21 +44,16 @@ window.createLinkOverlays = function(annotations, pageContainer, canvas, viewpor
             // Add click handler for the annotation
             linkElement.addEventListener('click', function(event) {
                 event.preventDefault();
-                console.log('PDF Link clicked:', annotation);
 
                 if (annotation.url) {
                     // External URL - use the URL directly for enhanced preview
-                    console.log('External URL clicked:', annotation.url);
                     window.displayReferenceInfoFromUrl(annotation.url);
                 } else if (annotation.dest) {
                     // Internal link (like to references)
-                    console.log('Internal link destination:', annotation.dest);
                     const lastName = extractLastNameNearAnnotation(annotation, textContent.items);
-                    console.log('Extracted citing last name:', lastName);
                     window.findAndDisplayReference(annotation, pdf, lastName);
                 } else if (annotation.action) {
                     // Action-based link
-                    console.log('Link action:', annotation.action);
                     window.displayReferenceInfo('Link Action', JSON.stringify(annotation.action), 'This is a PDF action link.');
                 }
                 
@@ -125,8 +120,10 @@ window.extractCitationNumbers = function(text) {
         }
     } else if (text.match(/^\[\d+(,\s*\d+)*\]$/)) {
         // Multiple like [1,3,5] or [1, 3, 5]
+        // const matches = text.match(/\d+/g);
+        // numbers.push(...matches.map(n => parseInt(n)));
         const matches = text.match(/\d+/g);
-        numbers.push(...matches.map(n => parseInt(n)));
+        numbers.push(...matches.map(n => parseInt(n, 10)));
     } else if (text.match(/^\(\d+\)$/)) {
         // Parenthetical like (5)
         numbers.push(parseInt(text.match(/\d+/)[0]));

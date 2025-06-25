@@ -4,25 +4,20 @@
 window.findAndDisplayReference = async function(annotation, pdf, citingLastName) {
     try {
         const dest = annotation.dest;
-        console.log('Citation clicked - destination:', dest);
         
         if (dest && dest.length > 0) {
             // Get all destinations from the PDF
             const destinations = await pdf.getDestinations();
-            console.log('Available destinations:', Object.keys(destinations));
             
             let targetDestination = null;
             
             // If dest[0] is a string (named destination), look it up
             if (typeof dest === 'string') {
                 const destName = dest;
-                console.log('Looking up named destination:', destName);
                 targetDestination = destinations[destName];
-                console.log('Found named destination:', targetDestination);
             } else {
                 // Use the destination array directly
                 targetDestination = dest;
-                console.log('Using direct destination array:', targetDestination);
             }
             
             if (targetDestination && targetDestination.length > 0) {
@@ -30,38 +25,30 @@ window.findAndDisplayReference = async function(annotation, pdf, citingLastName)
                 const destPageNum = await findDestinationPageFromArray(targetDestination, pdf);
                 
                 if (destPageNum) {
-                    console.log(`Following link to page ${destPageNum}`);
-                    
                     // Get the destination page content
                     const page = await pdf.getPage(destPageNum);
                     const textContent = await page.getTextContent();
+                    
+                    console.log('📍 CITATION TRACKING:');
+                    console.log('  Destination page:', destPageNum);
+                    console.log('  Link destination coords (PDF space):', targetDestination);
                     
                     // Check if this is a figure reference by analyzing the destination content
                     const figureInfo = await detectFigureAtDestination(textContent, targetDestination, page, pdf, destPageNum);
                     
                     if (figureInfo) {
-                        console.log('Detected figure reference:', figureInfo);
                         window.displayFigureInfo(figureInfo);
                     } else {
-                        // Show immediate feedback for non-figure references
-                        window.displayReferenceInfo(
-                            `Following Citation Link...`,
-                            `Navigating to page ${destPageNum} to find the reference text...`,
-                            'Following the internal PDF link using pdf.getDestinations().'
-                        );
-                        
                         // Extract the actual reference text from the destination location
                         const referenceText = await extractReferenceAtDestination(textContent, targetDestination, page, citingLastName);
                         
                         if (referenceText && referenceText.length > 20) {
-                            console.log('Found reference text:', referenceText.substring(0, 100) + '...');
                             window.displayReferenceInfo(
                                 `Reference (Page ${destPageNum})`,
                                 referenceText,
                                 'Found by following the citation link to the bibliography.'
                             );
                         } else {
-                            console.log('Could not extract specific reference, showing page content');
                             const allRefs = extractAllReferencesFromPage(textContent);
                             window.displayReferenceInfo(
                                 `References Page ${destPageNum}`,
@@ -107,27 +94,19 @@ window.findAndDisplayReference = async function(annotation, pdf, citingLastName)
 // Function to find destination page from PDF destination array (improved)
 async function findDestinationPageFromArray(dest, pdf) {
     try {
-        console.log('Finding page from destination array:', dest);
-        
         // The destination format can vary, but usually the first element is the page reference
         if (dest[0] && typeof dest[0] === 'object' && dest[0].num) {
             // Page reference object
-            console.log('Using page reference object:', dest[0]);
             const pageRef = dest[0];
             const pageIndex = await pdf.getPageIndex(pageRef);
-            console.log('Page index found:', pageIndex);
             return pageIndex + 1; // Convert 0-based to 1-based
         } else if (typeof dest[0] === 'number') {
             // Direct page number
-            console.log('Using direct page number:', dest[0]);
             return dest[0];
         } else if (typeof dest[0] === 'string') {
             // Named destination - should have been resolved already
-            console.log('Unexpected string destination in array:', dest[0]);
             return null;
         }
-        
-        console.log('Could not determine page from destination array');
     } catch (error) {
         console.error('Error finding destination page from array:', error);
     }
@@ -137,19 +116,20 @@ async function findDestinationPageFromArray(dest, pdf) {
 // Function to detect if destination is a figure and extract figure information
 async function detectFigureAtDestination(textContent, dest, page, pdf, pageNum) {
     try {
-        console.log('=== FIGURE DETECTION DEBUG ===');
-        console.log('Page:', pageNum);
-        console.log('Destination:', dest);
-        
         const textItems = textContent.items;
-        console.log('Total text items on page:', textItems.length);
         
         // Get destination coordinates if available
         let targetY = null;
-        if (dest.length > 2 && typeof dest[2] === 'number') {
+        // if (dest.length > 2 && typeof dest[2] === 'number') {
+        //     targetY = dest[2];
+        //     console.log('Target Y coordinate:', targetY);
+        // }
+        if (dest[1] === 'XYZ' && dest.length > 3 && typeof dest[3] === 'number') {
+            targetY = dest[3];
+        } else if (dest.length > 2 && typeof dest[2] === 'number') {
             targetY = dest[2];
-            console.log('Target Y coordinate:', targetY);
         }
+
         
         // First, let's see ALL text on the page for debugging
         console.log('--- ALL TEXT ON PAGE ---');
@@ -166,7 +146,7 @@ async function detectFigureAtDestination(textContent, dest, page, pdf, pageNum) 
             const text = item.str.trim();
             const lowerText = text.toLowerCase();
             
-            console.log(`Checking text item ${i}: "${text}"`);
+            // console.log(`Checking text item ${i}: "${text}"`);
             
             // Look for figure indicators with various patterns
             if (lowerText.includes('figure') || lowerText.includes('fig.') || lowerText.includes('fig ')) {
@@ -1041,10 +1021,25 @@ async function extractReferenceAtDestination(textContent, dest, page, citingLast
 
         // Get destination coordinates if available
         let targetY = null;
-        if (dest.length > 2 && typeof dest[2] === 'number') {
-            targetY = dest[2]; // Y coordinate of destination
-            console.log('Target Y coordinate:', targetY);
+        console.log('  Destination array analysis:');
+        console.log('    Length:', dest.length);
+        console.log('    [0] (page ref):', dest[0]);
+        console.log('    [1] (type):', dest[1]);
+        console.log('    [2] (X coord):', dest[2]);
+        console.log('    [3] (Y coord):', dest[3]);
+        console.log('    [4] (zoom):', dest[4]);
+        
+        if (dest[1] === 'XYZ' && dest.length > 3 && typeof dest[3] === 'number') {
+            targetY = dest[3];
+            console.log('  Using Y from position [3]:', targetY);
+        } else if (dest[1] && dest[1].name === 'XYZ' && dest.length > 3 && typeof dest[3] === 'number') {
+            targetY = dest[3];
+            console.log('  Using Y from position [3] (object format):', targetY);
+        } else {
+            console.log('  No valid Y coordinate found in destination');
         }
+
+        console.log('  Final Target Y coordinate (PDF space):', targetY);
 
         // --- New heuristic ---
         if (targetY !== null) {
@@ -1078,6 +1073,16 @@ async function extractReferenceAtDestination(textContent, dest, page, citingLast
                     if (refText.length > 800) break;
                 }
 
+                console.log('  Found text around coords:', refText.trim().substring(0, 100) + '...');
+                
+                // Check if this looks like an arXiv reference
+                const arxivMatch = refText.match(/(arXiv:\d{4}\.\d{4,5}v?\d*)/i);
+                if (arxivMatch) {
+                    console.log('  🎯 ArXiv link found:', arxivMatch[1]);
+                } else {
+                    console.log('  ❌ No arXiv link detected in reference text');
+                }
+
                 if (refText.trim().length > 20) {
                     return refText.trim();
                 }
@@ -1093,14 +1098,11 @@ async function extractReferenceAtDestination(textContent, dest, page, citingLast
 
             // Look for reference number patterns
             if (text.match(/^\[\d+\]/) || text.match(/^\d+\./) || text.match(/^\(\d+\)/)) {
-                console.log('Found reference starter:', text, 'at Y:', item.transform[5]);
-
                 let isNearTarget = true;
                 if (targetY !== null && item.transform && item.transform[5]) {
                     const itemY = item.transform[5];
                     const distance = Math.abs(itemY - targetY);
                     isNearTarget = distance < 50;
-                    console.log(`Y distance: ${distance}, near target: ${isNearTarget}`);
                 }
 
                 if (isNearTarget) {
@@ -1137,12 +1139,34 @@ async function extractReferenceAtDestination(textContent, dest, page, citingLast
                 const lowerName = citingLastName.toLowerCase();
                 for (const ref of candidateRefs) {
                     if (ref.text.toLowerCase().includes(lowerName)) {
+                        console.log('  Found text around coords:', ref.text.substring(0, 100) + '...');
+                        
+                        // Check if this looks like an arXiv reference
+                        const arxivMatch = ref.text.match(/(arXiv:\d{4}\.\d{4,5}v?\d*)/i);
+                        if (arxivMatch) {
+                            console.log('  🎯 ArXiv link found:', arxivMatch[1]);
+                        } else {
+                            console.log('  ❌ No arXiv link detected in reference text');
+                        }
+                        
                         return ref.text;
                     }
                 }
             }
             candidateRefs.sort((a, b) => a.distance - b.distance);
-            console.log('Found', candidateRefs.length, 'candidate references, using closest');
+            
+            if (candidateRefs.length > 0) {
+                console.log('  Found text around coords:', candidateRefs[0].text.substring(0, 100) + '...');
+                
+                // Check if this looks like an arXiv reference
+                const arxivMatch = candidateRefs[0].text.match(/(arXiv:\d{4}\.\d{4,5}v?\d*)/i);
+                if (arxivMatch) {
+                    console.log('  🎯 ArXiv link found:', arxivMatch[1]);
+                } else {
+                    console.log('  ❌ No arXiv link detected in reference text');
+                }
+            }
+            
             return candidateRefs[0].text;
         }
 

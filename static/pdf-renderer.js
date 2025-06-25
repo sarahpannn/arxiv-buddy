@@ -112,21 +112,24 @@ window.renderPDF = async function(pdfUrl) {
             context.imageSmoothingQuality = 'high';
             context.textRenderingOptimization = 'optimizeQuality';
 
-            // Create text layer container
+            // Create text layer with same viewport as canvas for proper alignment
             const textLayerDiv = document.createElement('div');
             textLayerDiv.className = 'textLayer';
             textLayerDiv.style.position = 'absolute';
             textLayerDiv.style.left = '0';
             textLayerDiv.style.top = '0';
+            textLayerDiv.style.transform = 'translateX(83px)'; // Shift right to account for margin
             textLayerDiv.style.right = '0';
             textLayerDiv.style.bottom = '0';
             textLayerDiv.style.overflow = 'hidden';
             textLayerDiv.style.opacity = '0.25';
             textLayerDiv.style.lineHeight = '1.0';
-            textLayerDiv.style.maxWidth = '700px';
-            textLayerDiv.style.maxHeight = '900px';
-            textLayerDiv.style.width = Math.min(displayWidth, 700) + 'px';
-            textLayerDiv.style.height = Math.min(displayHeight, 900) + 'px';
+            textLayerDiv.style.whiteSpace = 'pre';
+            textLayerDiv.style.fontSize = '0.63em'; // Make font smaller
+            
+            // Use the same dimensions as canvas for proper scaling
+            textLayerDiv.style.width = canvas.style.width;
+            textLayerDiv.style.height = canvas.style.height;
             textLayerDiv.style.margin = '0 auto';
 
             // Add canvas and text layer to page container
@@ -144,7 +147,8 @@ window.renderPDF = async function(pdfUrl) {
             // Get text content and render text layer
             const textContent = await page.getTextContent();
             
-            // Render text layer for selectable text
+            // Use the same viewport as canvas for proper alignment
+            
             const textLayer = new pdfjsLib.TextLayer({
                 textContentSource: textContent,
                 container: textLayerDiv,
@@ -158,7 +162,6 @@ window.renderPDF = async function(pdfUrl) {
             console.log(`Page ${pageNum} annotations:`, annotations);
 
             // Process annotations and create clickable overlays
-            // Pass pageNum and textContent so handlers can use citation context
             createLinkOverlays(annotations, pageContainer, canvas, viewport, pdf, pageNum, textContent);
 
             // Add pattern-based citation detection fallback
