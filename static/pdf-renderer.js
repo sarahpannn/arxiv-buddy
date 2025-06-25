@@ -158,7 +158,8 @@ window.renderPDF = async function(pdfUrl) {
             console.log(`Page ${pageNum} annotations:`, annotations);
 
             // Process annotations and create clickable overlays
-            createLinkOverlays(annotations, pageContainer, canvas, viewport, pdf);
+            // Pass pageNum and textContent so handlers can use citation context
+            createLinkOverlays(annotations, pageContainer, canvas, viewport, pdf, pageNum, textContent);
 
             // Add pattern-based citation detection fallback
             addPatternBasedCitationDetection(textLayerDiv, pdf);
