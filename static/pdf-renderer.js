@@ -3,6 +3,9 @@
 // Set the worker source for PDF.js
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.mjs';
 
+// Store canvas data for responsive resizing
+window.pdfCanvases = window.pdfCanvases || [];
+
 // Function to render PDF with given URL
 window.renderPDF = async function(pdfUrl) {
     console.log('PDF URL:', pdfUrl);
@@ -14,6 +17,12 @@ window.renderPDF = async function(pdfUrl) {
         // Get total number of pages
         const numPages = pdf.numPages;
         console.log('Total pages:', numPages);
+        
+        // Clear existing link overlays and canvas data before loading new PDF
+        if (window.clearLinkOverlays) {
+            window.clearLinkOverlays();
+        }
+        window.pdfCanvases = [];
         
         // Get the container and clear existing content
         const container = document.body;
@@ -33,7 +42,8 @@ window.renderPDF = async function(pdfUrl) {
         leftPane.style.overflow = 'auto';
         leftPane.style.backgroundColor = '#f5f5f5';
         leftPane.style.borderRight = '2px solid #ddd';
-        leftPane.style.padding = '20px';
+        // leftPane.style.padding = '10px';
+        leftPane.style.padding = '0 8px 0 0';
         
         // Create right pane for future content
         const rightPane = document.createElement('div');
@@ -78,7 +88,8 @@ window.renderPDF = async function(pdfUrl) {
             const pageContainer = document.createElement('div');
             pageContainer.style.position = 'relative';
             pageContainer.style.display = 'inline-block';
-            pageContainer.style.margin = '0 auto 20px auto';
+            // pageContainer.style.margin = '0 auto 15px auto';
+            pageContainer.style.margin = '0 0 15px 0'; 
             pageContainer.style.display = 'block';
             pageContainer.style.textAlign = 'center';
 
@@ -95,11 +106,14 @@ window.renderPDF = async function(pdfUrl) {
             const displayWidth = viewport.width / scale;
             const displayHeight = viewport.height / scale;
             
-            // Style the canvas with proper display size
-            canvas.style.maxWidth = '700px';
-            canvas.style.maxHeight = '900px';
-            canvas.style.width = Math.min(displayWidth, 700) + 'px';
-            canvas.style.height = Math.min(displayHeight, 900) + 'px';
+            // Apply initial canvas sizing first
+            canvas.style.maxWidth = '95%';
+            canvas.style.maxHeight = '1200px';
+            const targetW = leftPane.clientWidth * 0.90;
+            const scaledW = Math.min(viewport.width, targetW);
+            const scaledH = scaledW * viewport.height / viewport.width;
+            canvas.style.width = scaledW + 'px';
+            canvas.style.height = scaledH + 'px';
             canvas.style.display = 'block';
             canvas.style.margin = '0 auto';
             canvas.style.border = '1px solid #ccc';
@@ -136,6 +150,15 @@ window.renderPDF = async function(pdfUrl) {
             pageContainer.appendChild(canvas);
             pageContainer.appendChild(textLayerDiv);
             leftPane.appendChild(pageContainer);
+
+            // Store canvas data for responsive resizing (after text layer is created)
+            const canvasData = {
+                canvas: canvas,
+                textLayer: textLayerDiv,
+                viewport: viewport,
+                leftPane: leftPane
+            };
+            window.pdfCanvases.push(canvasData);
 
             // Render the PDF page on the canvas
             const renderContext = {
@@ -174,3 +197,51 @@ window.renderPDF = async function(pdfUrl) {
         console.error('Error rendering PDF:', error);
     }
 };
+
+// Function to resize a single canvas and its text layer
+function resizeCanvas(canvasData) {
+    const { canvas, textLayer, viewport, leftPane } = canvasData;
+    
+    // Style the canvas with proper display size
+    canvas.style.maxWidth = '95%';
+    canvas.style.maxHeight = '1200px';
+    
+    // Calculate responsive sizing
+    const targetW = leftPane.clientWidth * 0.90;
+    const scaledW = Math.min(viewport.width, targetW);
+    const scaledH = scaledW * viewport.height / viewport.width;
+    
+    canvas.style.width = scaledW + 'px';
+    canvas.style.height = scaledH + 'px';
+    
+    // Update text layer dimensions to match canvas
+    if (textLayer) {
+        textLayer.style.width = canvas.style.width;
+        textLayer.style.height = canvas.style.height;
+    }
+}
+
+// Function to resize all PDF canvases (called on window resize)
+window.resizePDFCanvases = function() {
+    if (window.pdfCanvases) {
+        window.pdfCanvases.forEach(canvasData => {
+            resizeCanvas(canvasData);
+        });
+    }
+}
+
+// Add window resize listener for PDF canvases (extends existing resize functionality)
+if (!window.pdfResizeListenerAdded) {
+    window.addEventListener('resize', function() {
+        // Debounce the resize event to avoid excessive calls
+        clearTimeout(window.pdfResizeTimeout);
+        window.pdfResizeTimeout = setTimeout(() => {
+            window.resizePDFCanvases();
+            // Also reposition link overlays if the function exists
+            if (window.repositionLinkOverlays) {
+                window.repositionLinkOverlays();
+            }
+        }, 100);
+    });
+    window.pdfResizeListenerAdded = true;
+}

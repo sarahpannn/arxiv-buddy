@@ -1,5 +1,8 @@
 // PDF annotation and link handling functionality
 
+// Store link overlays for repositioning on resize
+window.linkOverlays = window.linkOverlays || [];
+
 // Function to create link overlays with proper positioning
 window.createLinkOverlays = function(annotations, pageContainer, canvas, viewport, pdf, pageNum, textContent) {
     // Process annotations and create clickable overlays
@@ -12,34 +15,21 @@ window.createLinkOverlays = function(annotations, pageContainer, canvas, viewpor
             linkElement.style.cursor = 'pointer';
             linkElement.style.zIndex = '10';
             
-            // Transform annotation coordinates to viewport coordinates
-            const rect = annotation.rect;
-            const [x1, y1, x2, y2] = rect;
+            // Store data needed for repositioning
+            const linkData = {
+                element: linkElement,
+                annotation: annotation,
+                pageContainer: pageContainer,
+                canvas: canvas,
+                viewport: viewport,
+                pageNum: pageNum
+            };
             
-            // Calculate the canvas's position within its container (accounting for centering)
-            const containerWidth = pageContainer.offsetWidth;
-            const canvasDisplayWidth = canvas.offsetWidth;
-            const canvasDisplayHeight = canvas.offsetHeight;
-            const canvasOffsetX = (containerWidth - canvasDisplayWidth) / 2;
+            // Position the link overlay
+            positionLinkOverlay(linkData);
             
-            // Simple approach: scale annotation coordinates directly to display size
-            // PDF base size = viewport.width / viewport.scale, viewport.height / viewport.scale
-            const pdfBaseWidth = viewport.width / viewport.scale;
-            const pdfBaseHeight = viewport.height / viewport.scale;
-            
-            const scaleX = canvasDisplayWidth / pdfBaseWidth;
-            const scaleY = canvasDisplayHeight / pdfBaseHeight;
-            
-            // PDF coordinates are from bottom-left, we need top-left relative to canvas
-            const left = canvasOffsetX + (x1 * scaleX);
-            const top = (pdfBaseHeight - y2) * scaleY;
-            const width = (x2 - x1) * scaleX;
-            const height = (y2 - y1) * scaleY;
-            
-            linkElement.style.left = `${left}px`;
-            linkElement.style.top = `${top}px`;
-            linkElement.style.width = `${width}px`;
-            linkElement.style.height = `${height}px`;
+            // Store in global array for resize handling
+            window.linkOverlays.push(linkData);
             
             // Add click handler for the annotation
             linkElement.addEventListener('click', function(event) {
@@ -152,4 +142,69 @@ function extractLastNameNearAnnotation(annotation, textItems) {
 
     const match = line.match(/([A-Z][a-zA-Z]{2,})/);
     return match ? match[1] : null;
+}
+
+// Function to position a single link overlay
+function positionLinkOverlay(linkData) {
+    const { element, annotation, pageContainer, canvas, viewport } = linkData;
+    const rect = annotation.rect;
+    const [x1, y1, x2, y2] = rect;
+    
+    // Calculate the canvas's position within its container (accounting for centering)
+    const containerWidth = pageContainer.offsetWidth;
+    const canvasDisplayWidth = canvas.offsetWidth;
+    const canvasDisplayHeight = canvas.offsetHeight;
+    const canvasOffsetX = (containerWidth - canvasDisplayWidth) / 2;
+    
+    // Simple approach: scale annotation coordinates directly to display size
+    // PDF base size = viewport.width / viewport.scale, viewport.height / viewport.scale
+    const pdfBaseWidth = viewport.width / viewport.scale;
+    const pdfBaseHeight = viewport.height / viewport.scale;
+    
+    const scaleX = canvasDisplayWidth / pdfBaseWidth;
+    const scaleY = canvasDisplayHeight / pdfBaseHeight;
+    
+    // PDF coordinates are from bottom-left, we need top-left relative to canvas
+    const left = canvasOffsetX + (x1 * scaleX);
+    const top = (pdfBaseHeight - y2) * scaleY;
+    const width = (x2 - x1) * scaleX;
+    const height = (y2 - y1) * scaleY;
+    
+    element.style.left = `${left}px`;
+    element.style.top = `${top}px`;
+    element.style.width = `${width}px`;
+    element.style.height = `${height}px`;
+}
+
+// Function to reposition all link overlays (called on window resize)
+window.repositionLinkOverlays = function() {
+    if (window.linkOverlays) {
+        window.linkOverlays.forEach(linkData => {
+            positionLinkOverlay(linkData);
+        });
+    }
+}
+
+// Function to clear all link overlays (called when loading new PDF)
+window.clearLinkOverlays = function() {
+    if (window.linkOverlays) {
+        window.linkOverlays.forEach(linkData => {
+            if (linkData.element && linkData.element.parentNode) {
+                linkData.element.parentNode.removeChild(linkData.element);
+            }
+        });
+        window.linkOverlays = [];
+    }
+}
+
+// Add window resize listener to reposition overlays
+if (!window.resizeListenerAdded) {
+    window.addEventListener('resize', function() {
+        // Debounce the resize event to avoid excessive calls
+        clearTimeout(window.resizeTimeout);
+        window.resizeTimeout = setTimeout(() => {
+            window.repositionLinkOverlays();
+        }, 100);
+    });
+    window.resizeListenerAdded = true;
 }
