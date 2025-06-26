@@ -184,7 +184,15 @@ function parseReferenceText(text) {
     };
     
     // Extract ArXiv ID
-    const arxivMatch = text.match(/(?:arXiv[:\s]*)?(\d{4}\.\d{4,5}(?:v\d+)?)/i);
+    let arxivMatch = text.match(/arXiv(?:\s+preprint)?\s*arXiv[:\s]*([0-9]{4}\.[0-9]{4,5}(?:v\d+)?)/i);
+    if (!arxivMatch) {
+        // Try standard arXiv:xxxx.xxxxx or arXiv xxxx.xxxxx
+        arxivMatch = text.match(/arXiv[:\s]*([0-9]{4}\.[0-9]{4,5}(?:v\d+)?)/i);
+    }
+    if (!arxivMatch) {
+        // Fallback: any arXiv-like ID not part of a DOI
+        arxivMatch = text.match(/\b([0-9]{4}\.[0-9]{4,5}(?:v\d+)?)\b(?!\s*\/)/);
+    }
     if (arxivMatch) {
         info.arxivId = arxivMatch[1];
     }

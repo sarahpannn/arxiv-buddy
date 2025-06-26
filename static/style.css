@@ -6,47 +6,79 @@
 }
 
 body {
-  font-family: Arial, sans-serif;
-  line-height: 1.6;
-  color: #333;
-  background-color: #f4f4f4;
+  font-family: 'Inter', 'Roboto', 'Segoe UI', 'Helvetica Neue', Arial, 'Liberation Sans', sans-serif;
+  font-size: 18px;
+  line-height: 1.7;
+  color: #23272f;
+  background-color: #f6f7fa;
   padding: 20px;
 }
 
 h1, h2 {
   margin-bottom: 20px;
-  color: #333;
+  color: #23272f;
+  font-weight: 700;
+  letter-spacing: -1px;
 }
 
 form {
   margin-bottom: 20px;
 }
 
+.card, .form-card {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+  padding: 36px 32px 28px 32px;
+  max-width: 420px;
+  margin: 0 auto 32px auto;
+}
+
 input[type="url"] {
   width: 100%;
-  padding: 10px;
-  margin-bottom: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fafbfc;
+  font-size: 1rem;
+  transition: border 0.2s;
+}
+
+input[type="url"]:focus {
+  border: 1.5px solid #4285f4;
+  outline: none;
 }
 
 button {
   background-color: #4285f4;
   color: white;
   border: none;
-  border-radius: 4px;
-  padding: 8px 16px;
+  border-radius: 6px;
+  padding: 12px 24px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 1rem;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(66,133,244,0.08);
+  transition: background 0.2s, box-shadow 0.2s;
 }
 
 button:hover {
   background-color: #3367d6;
+  box-shadow: 0 4px 16px rgba(66,133,244,0.12);
 }
 
 button:disabled {
   background-color: #cccccc;
   cursor: not-allowed;
+}
+
+#viewer-container {
+  border: 1px solid #eee;
+  border-radius: 10px;
+  margin-top: 20px;
+  min-height: 200px;
+  background: #fafbfc;
 }
 
 #pdf-canvas {

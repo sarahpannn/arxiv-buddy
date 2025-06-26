@@ -57,45 +57,40 @@ def download_arxiv_pdf(arxiv_url):
 
 @rt("/")
 def get():
-    return Titled("Arxiv Buddy", 
-        # Include both PDF.js main library and the worker
+    return Titled("", 
         Script(src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"),
         Link(rel="stylesheet", href="/static/style.css"),
         
         Div(
-            # H1("Arxiv Buddy", style="text-align: center; margin-bottom: 20px;"),
-            
-            # Form for entering ArXiv URL
-            Form(
-                Input(placeholder="Enter ArXiv URL (e.g., https://arxiv.org/abs/2309.15028)", 
-                      name="arxiv_url", 
-                      type="url", 
-                      required=True,
-                      style="width: 100%; padding: 10px; margin-bottom: 10px;"),
-                Button("Load PDF", type="submit", style="padding: 10px 15px;"),
-                action="/load_paper", 
-                method="post",
-                style="margin-bottom: 30px;"
+            Div(
+                H1("Arxiv Buddy", style="font-size: 2.2rem; font-weight: 700; margin-bottom: 0.5rem; letter-spacing: -1px;"),
+                P("Welcome to the V0 Alpha of Arxiv Buddy.", Br(), "Graciously accepting feedback at ", A('@spantacular on X', href='https://x.com/spantacular'), style="color: #666; font-size: 1.1rem; margin-bottom: 2rem;"),
+                Form(
+                    Input(placeholder="Enter ArXiv URL (e.g., https://arxiv.org/abs/2309.15028)", 
+                          name="arxiv_url", 
+                          type="url", 
+                          required=True,
+                          style="width: 100%; max-width: 700px; padding: 16px 18px; margin-bottom: 18px; font-size: 1.1rem; border-radius: 8px; border: 1.5px solid #ccc; background: #fafbfc;"),
+                    Button("Load PDF", type="submit", style="padding: 14px 32px; font-size: 1.1rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(66,133,244,0.08); font-weight: 600;"),
+                    action="/load_paper", 
+                    method="post",
+                    style="margin-bottom: 0;"
+                ),
+                style="background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.07); padding: 44px 40px 36px 40px; max-width: 900px; margin: 0 auto;"
             ),
-            
-            # Container for PDF viewer (initially empty)
             Div(
                 Div(
-                    # This div will show a message when no PDF is loaded
-                    P("Enter an ArXiv URL above and click 'Load PDF' to view a paper", 
-                      style="text-align: center; color: #666; padding: 50px 20px;"),
-                    id="pdf-viewer-content"  # Changed ID
+                    P("Arxiv Buddy gives you a nicer way to read arXiv papers in your browser. Enter an arXiv URL above to get started!", 
+                      style="text-align: center; color: #888; font-size: 1.1rem;"),
+                    id="pdf-viewer-content",
+                    style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; min-height: 120px;"
                 ),
                 id="viewer-container",
-                style="border: 1px solid #ddd; border-radius: 5px; margin-top: 20px; min-height: 200px;"
+                style="border: 1px solid #eee; border-radius: 10px; margin-top: 24px; min-height: 150px; background: #fafbfc; max-width: 630px; margin-left: auto; margin-right: auto;"
             ),
-            
-            style="max-width: 800px; margin: 0 auto; padding: 20px; text-align: center;"
+            style="min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; background: none; padding: 0; text-align: center;"
         ),
-        
-        # Initialize PDF.js worker
         Script("""
-            // Set PDF.js worker source
             pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
         """)
     )

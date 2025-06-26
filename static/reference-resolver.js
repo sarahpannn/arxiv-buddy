@@ -46,7 +46,7 @@ window.findAndDisplayReference = async function(annotation, pdf, citingLastName)
                             window.displayReferenceInfo(
                                 `Reference (Page ${destPageNum})`,
                                 referenceText,
-                                'Found by following the citation link to the bibliography.'
+                                'Found by following the citation link to the bibliography. Alpha v0 reference following might be buggy. Feedback graciously appreciated @spantacular on X.'
                             );
                         } else {
                             const allRefs = extractAllReferencesFromPage(textContent);

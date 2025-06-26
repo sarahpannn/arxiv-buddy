@@ -49,14 +49,18 @@ window.renderPDF = async function(pdfUrl) {
         rightPane.style.height = '100%';
         rightPane.style.overflow = 'auto';
         rightPane.style.backgroundColor = '#fff';
+        rightPane.style.display = 'block';
         rightPane.style.padding = '20px';
-        rightPane.innerHTML = '<h3>What are we reading today?</h3><p>Click on in-page links to see details here...</p>';
+        rightPane.innerHTML = `<div style="max-width: 90%; margin: 0 auto; text-align: center; font-family: 'Inter', 'Roboto', 'Segoe UI', 'Helvetica Neue', Arial, 'Liberation Sans', sans-serif; word-break: break-word;">
+            <h3 style='font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; letter-spacing: -1px; color: #23272f;'>What are we reading today?</h3>
+            <p style='color: #666; font-size: 1.1rem; margin-top: 0;'>Click on in-page links to see details here...</p>
+        </div>`;
         
         // Create PDF title
         const title = document.createElement('h2');
         title.textContent = `${pdfUrl.slice(8, -4)} (${numPages} pages)`;
         title.style.textAlign = 'center';
-        title.style.margin = '0 0 20px 0';
+        title.style.margin = '30px 0 20px 0';
         leftPane.appendChild(title);
         
         // Add panes to main layout

@@ -17,20 +17,21 @@ window.displayFigureInfo = function(figureInfo) {
     }
     
     try {
+        const typeLabel = (figureInfo.type || 'figure').charAt(0).toUpperCase() + (figureInfo.type || 'figure').slice(1);
         const html = `
             <div style="padding: 20px; font-family: Arial, sans-serif;">
                 <h3 style="margin: 0 0 15px 0; color: #333; border-bottom: 2px solid #007acc; padding-bottom: 10px;">
-                    Figure ${figureInfo.number || 'Unknown'}
+                    ${typeLabel} ${figureInfo.number || 'Unknown'}
                 </h3>
                 
                 <div style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
                     <div style="position: relative;">
-                        <div style="width: 100%; height: 400px; background: #e9ecef; border-radius: 4px; margin-bottom: 10px; overflow: auto; border: 2px solid #ddd; position: relative;" 
+                        <div style="width: 100%; max-width: 100%; height: 400px; background: #e9ecef; border-radius: 4px; margin-bottom: 10px; overflow: auto; border: 2px solid #ddd; position: relative; box-sizing: border-box;" 
                              id="figure-container-${figureInfo.number || 'unknown'}">
                             ${figureInfo.area && figureInfo.area.imageDataUrl ? 
                                 `<img src="${figureInfo.area.imageDataUrl}" 
                                       id="figure-image-${figureInfo.number || 'unknown'}"
-                                      style="display: block; max-width: none; height: auto; min-width: 100%; transform-origin: top left; transition: transform 0.2s ease;" 
+                                      style="display: block; max-width: 100%; height: auto; box-sizing: border-box; transform-origin: top left; transition: transform 0.2s ease;" 
                                       alt="Figure ${figureInfo.number || 'Unknown'}" 
                                       title="Pinch to zoom, scroll to pan" />` :
                                 `<div style="display: flex; align-items: center; justify-content: center; height: 100%; text-align: center; color: #6c757d; font-size: 14px;">
@@ -90,7 +91,7 @@ window.displayFigureInfo = function(figureInfo) {
                 </div>
                 
                 <div style="background: #e8f4fd; border: 1px solid #bee5eb; border-radius: 4px; padding: 10px; font-size: 12px; color: #0c5460;">
-                    <strong>💡 Note:</strong> Figure extracted from PDF page. Use scrollbars to view the complete image if it extends beyond the preview area.
+                    <strong>💡 Note:</strong> Figure extracted from PDF page. Use scrollbars to view the complete image if it extends beyond the preview area. Alpha v0 figure grabbing might be buggy. Feedback graciously appreciated @spantacular on X.
                 </div>
             </div>
         `;
