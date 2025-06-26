@@ -65,7 +65,6 @@ button:disabled {
 .textLayer {
   position: absolute;
   text-align: initial;
-  inset: 0;
   overflow: hidden;
   opacity: 0.25;
   line-height: 1;
@@ -75,6 +74,9 @@ button:disabled {
   forced-color-adjust: none;
   transform-origin: 0 0;
   caret-color: CanvasText;
+  pointer-events: auto;
+  /* Remove any transforms that might interfere with positioning */
+  transform: none;
 }
 
 .textLayer span {
@@ -83,6 +85,8 @@ button:disabled {
   white-space: pre;
   cursor: text;
   transform-origin: 0% 0%;
+  /* Remove font-size scaling that can cause misalignment */
+  font-size: 1em !important;
 }
 
 .textLayer span[data-main-rotation="90"] {
@@ -125,4 +129,21 @@ button:disabled {
   height: auto;
   display: block;
   object-fit: contain;        /* keeps aspect ratio */
+}
+
+
+.textLayer{
+  position:absolute;
+  text-align:initial;
+  inset:0;
+  overflow:clip;
+  opacity:1;
+  line-height:1;
+  -webkit-text-size-adjust:none;
+     -moz-text-size-adjust:none;
+          text-size-adjust:none;
+  forced-color-adjust:none;
+  transform-origin:0 0;
+  caret-color:CanvasText;
+  z-index:0;
 }

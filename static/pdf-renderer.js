@@ -1,5 +1,3 @@
-// PDF rendering and layout functionality
-
 // Set the worker source for PDF.js
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.mjs';
 
@@ -42,7 +40,6 @@ window.renderPDF = async function(pdfUrl) {
         leftPane.style.overflow = 'auto';
         leftPane.style.backgroundColor = '#f5f5f5';
         leftPane.style.borderRight = '2px solid #ddd';
-        // leftPane.style.padding = '10px';
         leftPane.style.padding = '0 8px 0 0';
         
         // Create right pane for future content
@@ -57,7 +54,7 @@ window.renderPDF = async function(pdfUrl) {
         
         // Create PDF title
         const title = document.createElement('h2');
-        title.textContent = `PDF Document (${numPages} pages)`;
+        title.textContent = `${pdfUrl.slice(8, -4)} (${numPages} pages)`;
         title.style.textAlign = 'center';
         title.style.margin = '0 0 20px 0';
         leftPane.appendChild(title);
@@ -67,13 +64,119 @@ window.renderPDF = async function(pdfUrl) {
         mainLayout.appendChild(rightPane);
         container.appendChild(mainLayout);
 
+        // Add critical CSS for text layer if not already present
+        if (!document.getElementById('pdf-text-layer-styles')) {
+            const style = document.createElement('style');
+            style.id = 'pdf-text-layer-styles';
+            style.textContent = `
+                /* Reset text layer styles for PDF.js 4.3+ */
+                .textLayer {
+                    position: absolute;
+                    text-align: initial;
+                    left: 0;
+                    top: 0;
+                    right: 0;
+                    bottom: 0;
+                    overflow: hidden;
+                    opacity: 1;
+                    line-height: 1;
+                    text-size-adjust: none;
+                    forced-color-adjust: none;
+                    transform-origin: 0 0;
+                    z-index: 2;
+                    caret-color: auto;
+                }
+                
+                .textLayer :is(span, br) {
+                    color: transparent;
+                    position: absolute;
+                    white-space: pre;
+                    cursor: text;
+                    transform-origin: 0% 0%;
+                }
+                
+                /* Fix for selection visibility */
+                .textLayer span::selection {
+                    background: rgba(0, 0, 255, 0.3);
+                    color: transparent;
+                }
+                
+                .textLayer span::-moz-selection {
+                    background: rgba(0, 0, 255, 0.3);
+                    color: transparent;
+                }
+                
+                /* Ensure proper text selection */
+                .textLayer {
+                    user-select: text;
+                    -webkit-user-select: text;
+                    -moz-user-select: text;
+                    -ms-user-select: text;
+                }
+                
+                .textLayer .highlight {
+                    margin: -1px;
+                    padding: 1px;
+                    background-color: rgba(180, 0, 170, 0.2);
+                    border-radius: 4px;
+                }
+                
+                .textLayer .highlight.appended {
+                    position: initial;
+                }
+                
+                .textLayer .highlight.begin {
+                    border-radius: 4px 0 0 4px;
+                }
+                
+                .textLayer .highlight.end {
+                    border-radius: 0 4px 4px 0;
+                }
+                
+                .textLayer .highlight.middle {
+                    border-radius: 0;
+                }
+                
+                .textLayer .highlight.selected {
+                    background-color: rgba(0, 100, 0, 0.2);
+                }
+                
+                .textLayer .endOfContent {
+                    display: block;
+                    position: absolute;
+                    left: 0;
+                    top: 100%;
+                    right: 0;
+                    bottom: 0;
+                    z-index: -1;
+                    cursor: default;
+                    user-select: none;
+                }
+                
+                .textLayer .endOfContent.active {
+                    top: 0;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
         // Render each page
         for (let pageNum = 1; pageNum <= numPages; pageNum++) {
             const page = await pdf.getPage(pageNum);
             
-            // Set higher scale for crisp text rendering
-            const scale = 1.2 * (window.devicePixelRatio || 1);
-            const viewport = page.getViewport({ scale });
+            // Calculate display scale first
+            const baseViewport = page.getViewport({ scale: 1 });
+            const targetW = leftPane.clientWidth * 0.90;
+            const rawDisplayScale = targetW / baseViewport.width;
+            const displayScale = Math.max(0.2, Math.min(2.0, rawDisplayScale));
+            
+            // Set render scale for high-DPI displays
+            const outputScale = window.devicePixelRatio || 1;
+            const renderScale = displayScale * outputScale;
+            
+            // Create viewports
+            const displayViewport = page.getViewport({ scale: displayScale });
+            const renderViewport = page.getViewport({ scale: renderScale });
 
             // Add page number label
             const pageLabel = document.createElement('p');
@@ -86,12 +189,21 @@ window.renderPDF = async function(pdfUrl) {
 
             // Create page container with relative positioning
             const pageContainer = document.createElement('div');
+            pageContainer.className = 'page';
             pageContainer.style.position = 'relative';
-            pageContainer.style.display = 'inline-block';
-            // pageContainer.style.margin = '0 auto 15px auto';
-            pageContainer.style.margin = '0 0 15px 0'; 
             pageContainer.style.display = 'block';
+            pageContainer.style.margin = '0 0 15px 0';
             pageContainer.style.textAlign = 'center';
+            
+            // Create canvas wrapper for proper containment
+            const canvasWrapper = document.createElement('div');
+            canvasWrapper.className = 'canvasWrapper';
+            canvasWrapper.style.position = 'relative';
+            canvasWrapper.style.overflow = 'hidden';
+            canvasWrapper.style.display = 'inline-block';
+            canvasWrapper.style.margin = '0 auto';
+            canvasWrapper.style.width = displayViewport.width + 'px';
+            canvasWrapper.style.height = displayViewport.height + 'px';
 
             // Create canvas for this page
             const canvas = document.createElement('canvas');
@@ -99,96 +211,96 @@ window.renderPDF = async function(pdfUrl) {
             const context = canvas.getContext('2d');
 
             // Set the canvas dimensions for high-DPI rendering
-            canvas.height = viewport.height;
-            canvas.width = viewport.width;
+            canvas.height = renderViewport.height;
+            canvas.width = renderViewport.width;
             
-            // Calculate display dimensions
-            const displayWidth = viewport.width / scale;
-            const displayHeight = viewport.height / scale;
-            
-            // Apply initial canvas sizing first
-            canvas.style.maxWidth = '95%';
-            canvas.style.maxHeight = '1200px';
-            const targetW = leftPane.clientWidth * 0.90;
-            const scaledW = Math.min(viewport.width, targetW);
-            const scaledH = scaledW * viewport.height / viewport.width;
-            canvas.style.width = scaledW + 'px';
-            canvas.style.height = scaledH + 'px';
+            // Apply display sizing
+            canvas.style.width = displayViewport.width + 'px';
+            canvas.style.height = displayViewport.height + 'px';
             canvas.style.display = 'block';
             canvas.style.margin = '0 auto';
             canvas.style.border = '1px solid #ccc';
             canvas.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
-            canvas.style.imageRendering = 'crisp-edges';
-            canvas.style.imageRendering = '-webkit-optimize-contrast';
             
-            // Enable anti-aliasing for smoother text
-            context.imageSmoothingEnabled = true;
-            context.imageSmoothingQuality = 'high';
-            context.textRenderingOptimization = 'optimizeQuality';
-
-            // Create text layer with same viewport as canvas for proper alignment
-            const textLayerDiv = document.createElement('div');
-            textLayerDiv.className = 'textLayer';
-            textLayerDiv.style.position = 'absolute';
-            textLayerDiv.style.left = '0';
-            textLayerDiv.style.top = '0';
-            textLayerDiv.style.transform = 'translateX(83px)'; // Shift right to account for margin
-            textLayerDiv.style.right = '0';
-            textLayerDiv.style.bottom = '0';
-            textLayerDiv.style.overflow = 'hidden';
-            textLayerDiv.style.opacity = '0.25';
-            textLayerDiv.style.lineHeight = '1.0';
-            textLayerDiv.style.whiteSpace = 'pre';
-            textLayerDiv.style.fontSize = '0.63em'; // Make font smaller
-            
-            // Use the same dimensions as canvas for proper scaling
-            textLayerDiv.style.width = canvas.style.width;
-            textLayerDiv.style.height = canvas.style.height;
-            textLayerDiv.style.margin = '0 auto';
-
-            // Add canvas and text layer to page container
-            pageContainer.appendChild(canvas);
-            pageContainer.appendChild(textLayerDiv);
+            // Add canvas to wrapper and wrapper to page container
+            canvasWrapper.appendChild(canvas);
+            pageContainer.appendChild(canvasWrapper);
             leftPane.appendChild(pageContainer);
-
-            // Store canvas data for responsive resizing (after text layer is created)
-            const canvasData = {
-                canvas: canvas,
-                textLayer: textLayerDiv,
-                viewport: viewport,
-                leftPane: leftPane
-            };
-            window.pdfCanvases.push(canvasData);
 
             // Render the PDF page on the canvas
             const renderContext = {
                 canvasContext: context,
-                viewport: viewport
+                viewport: renderViewport
             };
             await page.render(renderContext).promise;
 
-            // Get text content and render text layer
+            // Create text layer div
+            const textLayerDiv = document.createElement('div');
+            textLayerDiv.className = 'textLayer';
+            
+            // Apply viewport transform to text layer container
+            const [scaleX, scaleY] = [displayViewport.scale, displayViewport.scale];
+            textLayerDiv.style.width = `${displayViewport.width}px`;
+            textLayerDiv.style.height = `${displayViewport.height}px`;
+            
+            canvasWrapper.appendChild(textLayerDiv);
+
+            // Get text content
             const textContent = await page.getTextContent();
             
-            // Use the same viewport as canvas for proper alignment
+            // Ensure fonts are ready before rendering text layer
+            if (document.fonts) {
+                await document.fonts.ready;
+            }
             
+            // Use the new TextLayer class (PDF.js 4.3+)
             const textLayer = new pdfjsLib.TextLayer({
-                textContentSource: textContent,
                 container: textLayerDiv,
-                viewport: viewport
+                viewport: displayViewport,
+                textContentSource: textContent
             });
-            
+
+            // Render the text layer
             await textLayer.render();
+            
+            // Debug: Check what PDF.js actually rendered
+            console.log(`Page ${pageNum} text layer rendered. First few spans:`, 
+                Array.from(textLayerDiv.querySelectorAll('span')).slice(0, 3).map(span => ({
+                    text: span.textContent,
+                    fontSize: window.getComputedStyle(span).fontSize,
+                    transform: window.getComputedStyle(span).transform
+                }))
+            );
+
+            // Store canvas data for responsive resizing
+            const canvasData = {
+                canvas: canvas,
+                textLayerDiv: textLayerDiv,
+                textLayer: textLayer,
+                page: page,
+                viewport: displayViewport,
+                baseViewport: baseViewport,
+                renderViewport: renderViewport,
+                displayScale: displayScale,
+                outputScale: outputScale,
+                leftPane: leftPane,
+                canvasWrapper: canvasWrapper
+            };
+            window.pdfCanvases.push(canvasData);
 
             // Get PDF annotations (links, etc.) for this page
             const annotations = await page.getAnnotations();
             console.log(`Page ${pageNum} annotations:`, annotations);
 
             // Process annotations and create clickable overlays
-            createLinkOverlays(annotations, pageContainer, canvas, viewport, pdf, pageNum, textContent);
+            if (window.createLinkOverlays) {
+                createLinkOverlays(annotations, pageContainer, canvas, displayViewport, pdf, pageNum, textContent);
+            }
 
             // Add pattern-based citation detection fallback
-            addPatternBasedCitationDetection(textLayerDiv, pdf);
+            if (window.addPatternBasedCitationDetection) {
+                addPatternBasedCitationDetection(textLayerDiv, pdf);
+            }
             
             console.log(`Rendered page ${pageNum}`);
         }
@@ -200,25 +312,61 @@ window.renderPDF = async function(pdfUrl) {
 
 // Function to resize a single canvas and its text layer
 function resizeCanvas(canvasData) {
-    const { canvas, textLayer, viewport, leftPane } = canvasData;
+    const { canvas, textLayerDiv, textLayer, page, baseViewport, leftPane, canvasWrapper, outputScale } = canvasData;
     
-    // Style the canvas with proper display size
-    canvas.style.maxWidth = '95%';
-    canvas.style.maxHeight = '1200px';
-    
-    // Calculate responsive sizing
+    // Calculate responsive display scale
     const targetW = leftPane.clientWidth * 0.90;
-    const scaledW = Math.min(viewport.width, targetW);
-    const scaledH = scaledW * viewport.height / viewport.width;
+    const rawDisplayScale = targetW / baseViewport.width;
+    const displayScale = Math.max(0.2, Math.min(2.0, rawDisplayScale));
+    const newDisplayViewport = page.getViewport({ scale: displayScale });
+    const newRenderViewport = page.getViewport({ scale: displayScale * outputScale });
     
-    canvas.style.width = scaledW + 'px';
-    canvas.style.height = scaledH + 'px';
-    
-    // Update text layer dimensions to match canvas
-    if (textLayer) {
-        textLayer.style.width = canvas.style.width;
-        textLayer.style.height = canvas.style.height;
+    // Update canvas wrapper dimensions
+    if (canvasWrapper) {
+        canvasWrapper.style.width = newDisplayViewport.width + 'px';
+        canvasWrapper.style.height = newDisplayViewport.height + 'px';
     }
+    
+    // Update canvas display size
+    canvas.style.width = newDisplayViewport.width + 'px';
+    canvas.style.height = newDisplayViewport.height + 'px';
+    
+    // Re-render canvas at new size
+    canvas.width = newRenderViewport.width;
+    canvas.height = newRenderViewport.height;
+    
+    const renderContext = {
+        canvasContext: canvas.getContext('2d'),
+        viewport: newRenderViewport
+    };
+    
+    page.render(renderContext).promise.then(async () => {
+        // Update text layer dimensions
+        textLayerDiv.style.width = `${newDisplayViewport.width}px`;
+        textLayerDiv.style.height = `${newDisplayViewport.height}px`;
+        
+        // Clear existing text layer content
+        textLayerDiv.innerHTML = '';
+        
+        // Get fresh text content
+        const textContent = await page.getTextContent();
+        
+        // Create new text layer with updated viewport
+        const newTextLayer = new pdfjsLib.TextLayer({
+            container: textLayerDiv,
+            viewport: newDisplayViewport,
+            textContentSource: textContent
+        });
+        
+        // Render the new text layer
+        await newTextLayer.render();
+        
+        // Update stored references
+        canvasData.textLayer = newTextLayer;
+        canvasData.viewport = newDisplayViewport;
+        canvasData.renderViewport = newRenderViewport;
+        canvasData.displayScale = displayScale;
+    });
 }
 
 // Function to resize all PDF canvases (called on window resize)
@@ -230,7 +378,7 @@ window.resizePDFCanvases = function() {
     }
 }
 
-// Add window resize listener for PDF canvases (extends existing resize functionality)
+// Add window resize listener for PDF canvases
 if (!window.pdfResizeListenerAdded) {
     window.addEventListener('resize', function() {
         // Debounce the resize event to avoid excessive calls

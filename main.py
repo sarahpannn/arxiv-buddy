@@ -124,6 +124,11 @@ def load_paper(arxiv_url: str):
             Body(
                 Canvas(id='pdf-canvas'),
                 Script(src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.mjs', type='module'),
+                Link(rel="stylesheet", href="/static/text_layer_builder.css"),
+                Script(src='/static/ui_utils.js', type='module'),
+                Script(src='/static/text_highlighter.js', type='module'),
+                Script(src='/static/text_layer_builder.js', type='module'), 
+                Script(src='/static/pdf_link_service.js', type='module'),
                 Script(src='/static/pdf-renderer.js', type='module'),
                 Script(src='/static/annotation-handler.js', type='module'),
                 Script(src='/static/destination-handler.js', type='module'),

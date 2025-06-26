@@ -95,6 +95,13 @@ window.detectFigureAtDestination = async function(textContent, dest, page, pdf, 
                         const match = text.match(pattern);
                         if (match) {
                             console.log('*** PATTERN MATCHED:', pattern, match);
+                            
+                            // Check if this is a citation (reference TO a figure) rather than an actual figure caption
+                            if (isCitationNotCaption(textItems, i, contentDef.type, match[1])) {
+                                console.log('*** SKIPPING - This appears to be a citation, not a caption');
+                                continue;
+                            }
+                            
                             contentType = contentDef.type;
                             contentNumber = match[1];
                             contentCaption = match[2] || '';
@@ -200,4 +207,86 @@ async function extractFigureArea(page, targetY) {
             imageDataUrl: null
         };
     }
+}
+
+// Function to determine if a figure/table reference is a citation rather than an actual caption
+function isCitationNotCaption(textItems, currentIndex, contentType, contentNumber) {
+    const currentItem = textItems[currentIndex];
+    if (!currentItem.transform) return false;
+    
+    const currentY = currentItem.transform[5];
+    const currentX = currentItem.transform[4];
+    
+    // Look at surrounding context (both before and after)
+    const contextRange = 10;
+    let contextText = '';
+    
+    // Collect text from surrounding items on the same line/paragraph
+    for (let i = Math.max(0, currentIndex - contextRange); i <= Math.min(textItems.length - 1, currentIndex + contextRange); i++) {
+        const item = textItems[i];
+        if (!item.transform) continue;
+        
+        const itemY = item.transform[5];
+        // Only include text from roughly the same line (within 20 pixels vertically)
+        if (Math.abs(itemY - currentY) <= 20) {
+            contextText += ' ' + item.str;
+        }
+    }
+    
+    contextText = contextText.toLowerCase().trim();
+    console.log('*** CONTEXT TEXT:', contextText);
+    
+    // Citation indicators - phrases that suggest this is referencing a figure, not defining one
+    const citationIndicators = [
+        'see figure', 'see fig', 'in figure', 'in fig', 'shown in figure', 'shown in fig',
+        'as shown', 'as seen', 'depicted in', 'illustrated in', 'presented in',
+        'refer to', 'according to', 'based on', 'from figure', 'from fig',
+        'see table', 'in table', 'shown in table', 'from table',
+        'see algorithm', 'in algorithm', 'see equation', 'in equation',
+        'see appendix', 'in appendix', 'see section', 'in section'
+    ];
+    
+    // Check if any citation indicators are present
+    for (const indicator of citationIndicators) {
+        if (contextText.includes(indicator)) {
+            console.log('*** CITATION INDICATOR FOUND:', indicator);
+            return true;
+        }
+    }
+    
+    // Check for parenthetical references - often citations
+    const figureRef = `${contentType} ${contentNumber}`;
+    const figRefPattern = new RegExp(`\\(.*${contentType}.*${contentNumber}.*\\)`, 'i');
+    if (figRefPattern.test(contextText)) {
+        console.log('*** PARENTHETICAL REFERENCE DETECTED');
+        return true;
+    }
+    
+    // Check if the reference appears mid-sentence (likely a citation)
+    // Captions usually start at the beginning of a line or after significant whitespace
+    let beforeText = '';
+    for (let i = Math.max(0, currentIndex - 5); i < currentIndex; i++) {
+        const item = textItems[i];
+        if (!item.transform) continue;
+        const itemY = item.transform[5];
+        if (Math.abs(itemY - currentY) <= 10) { // Same line
+            beforeText += ' ' + item.str;
+        }
+    }
+    
+    // If there's substantial text before the figure reference on the same line, it's likely a citation
+    if (beforeText.trim().length > 20 && !beforeText.trim().match(/^\s*$/)) {
+        // Check if it doesn't end with a period (which would suggest start of new sentence)
+        if (!beforeText.trim().endsWith('.') && !beforeText.trim().endsWith(':')) {
+            console.log('*** MID-SENTENCE REFERENCE DETECTED');
+            return true;
+        }
+    }
+    
+    // Additional heuristic: Check font size or positioning
+    // Captions are often in smaller font or positioned differently than body text
+    // This is harder to detect reliably in PDF.js text extraction
+    
+    console.log('*** APPEARS TO BE ACTUAL CAPTION');
+    return false;
 }
