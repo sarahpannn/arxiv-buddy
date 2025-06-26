@@ -1,0 +1,5 @@
+fastapi
+python-fasthtml
+uvicorn
+requests
+python-multipart
