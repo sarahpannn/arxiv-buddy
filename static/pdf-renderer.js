@@ -50,7 +50,7 @@ window.renderPDF = async function(pdfUrl) {
         rightPane.style.overflow = 'auto';
         rightPane.style.backgroundColor = '#fff';
         rightPane.style.padding = '20px';
-        rightPane.innerHTML = '<h3>Document Info</h3><p>Click on citations to see details here...</p>';
+        rightPane.innerHTML = '<h3>What are we reading today?</h3><p>Click on in-page links to see details here...</p>';
         
         // Create PDF title
         const title = document.createElement('h2');
