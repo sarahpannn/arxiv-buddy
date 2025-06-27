@@ -3,3 +3,7 @@ python-fasthtml
 uvicorn
 requests
 python-multipart
+python-dotenv
+Flask
+Flask-Login
+Flask-SQLAlchemy

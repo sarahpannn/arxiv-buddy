@@ -1,7 +1,7 @@
 // Reference extraction functionality
 
 // Function to extract reference text at a specific destination
-window.extractReferenceAtDestination = async function(textContent, dest, page, citingLastName) {
+window.extractReferenceAtDestination = async function(textContent, dest, page, citingLastName, pdf = null) {
     try {
         const textItems = textContent.items;
         let targetY = null;
@@ -30,6 +30,8 @@ window.extractReferenceAtDestination = async function(textContent, dest, page, c
                 let refLines = [itemsSorted[startIndex].str];
                 let prevY = itemsSorted[startIndex].transform[5];
                 let spacings = [];
+                let reachedPageEnd = false;
+                
                 for (let j = startIndex + 1; j < itemsSorted.length; j++) {
                     const item = itemsSorted[j];
                     if (!item.transform) break;
@@ -42,8 +44,37 @@ window.extractReferenceAtDestination = async function(textContent, dest, page, c
                     if (avgSpacing > 0 && spacing > 2 * avgSpacing) break;
                     refLines.push(item.str);
                     prevY = currY;
+                    
+                    // Check if we're at the last item on the page
+                    if (j === itemsSorted.length - 1) {
+                        reachedPageEnd = true;
+                    }
                 }
-                const refText = refLines.join(' ').trim();
+                
+                let refText = refLines.join(' ').trim();
+                
+                console.log('🔍 CROSS-PAGE DEBUG: Initial reference text:', refText.substring(0, 200) + '...');
+                console.log('🔍 CROSS-PAGE DEBUG: reachedPageEnd:', reachedPageEnd);
+                console.log('🔍 CROSS-PAGE DEBUG: pdf available:', !!pdf);
+                console.log('🔍 CROSS-PAGE DEBUG: text length:', refText.length);
+                console.log('🔍 CROSS-PAGE DEBUG: ends with period:', !!refText.match(/\.\s*$/));
+                console.log('🔍 CROSS-PAGE DEBUG: includes doi:', refText.includes('doi:'));
+                
+                // If the reference looks incomplete (doesn't end with period and no DOI),
+                // try to continue on the next page
+                if (pdf && refText.length > 20 && !refText.match(/\.\s*$/) && !refText.includes('doi:')) {
+                    console.log('🔍 CROSS-PAGE DEBUG: Reference may continue on next page, checking...');
+                    const continuationText = await getContinuationFromNextPage(page, pdf, refText);
+                    if (continuationText) {
+                        console.log('🔍 CROSS-PAGE DEBUG: Extended reference with next page content:', continuationText);
+                        refText += ' ' + continuationText;
+                    } else {
+                        console.log('🔍 CROSS-PAGE DEBUG: No valid continuation found on next page');
+                    }
+                } else {
+                    console.log('🔍 CROSS-PAGE DEBUG: Not checking next page - conditions not met');
+                }
+                
                 if (refText.length > 20) {
                     return refText;
                 }
@@ -242,4 +273,116 @@ function findReferenceByNumber(textContent, citationNumber) {
     }
     
     return null;
+}
+
+// Function to get continuation text from the next page
+async function getContinuationFromNextPage(currentPage, pdf, partialRefText) {
+    try {
+        const currentPageNum = currentPage.pageNumber;
+        const totalPages = pdf.numPages;
+        
+        console.log('📄 NEXT-PAGE DEBUG: Current page:', currentPageNum, 'Total pages:', totalPages);
+        
+        // Don't try to go beyond the last page
+        if (currentPageNum >= totalPages) {
+            console.log('📄 NEXT-PAGE DEBUG: Already on last page, cannot continue');
+            return null;
+        }
+        
+        const nextPage = await pdf.getPage(currentPageNum + 1);
+        const nextPageTextContent = await nextPage.getTextContent();
+        const nextPageItems = nextPageTextContent.items;
+        
+        console.log('📄 NEXT-PAGE DEBUG: Next page has', nextPageItems?.length || 0, 'text items');
+        
+        if (!nextPageItems || nextPageItems.length === 0) {
+            console.log('📄 NEXT-PAGE DEBUG: No text items on next page');
+            return null;
+        }
+        
+        // Sort by Y coordinate (top to bottom)
+        const sortedItems = nextPageItems.slice().sort((a, b) => b.transform[5] - a.transform[5]);
+        
+        console.log('📄 NEXT-PAGE DEBUG: First few items on next page:');
+        for (let i = 0; i < Math.min(5, sortedItems.length); i++) {
+            console.log(`  ${i}: "${sortedItems[i].str}"`);
+        }
+        
+        // Look for continuation at the top of the next page
+        let continuationText = '';
+        let foundValidContinuation = false;
+        
+        // Start from the top and collect text until we hit what looks like a new reference
+        for (let i = 0; i < Math.min(20, sortedItems.length); i++) {
+            const item = sortedItems[i];
+            const text = item.str.trim();
+            
+            if (!text) continue;
+            
+            console.log(`📄 NEXT-PAGE DEBUG: Processing item ${i}: "${text}"`);
+            
+            // Stop if we encounter a new reference number pattern
+            if (text.match(/^\[\d+\]/) || text.match(/^\d+\./) || text.match(/^\(\d+\)/)) {
+                console.log('📄 NEXT-PAGE DEBUG: Found new reference pattern, stopping');
+                break;
+            }
+            
+            // Skip if this looks like a header/footer/page number
+            if (text.match(/^\d+$/) || text.length < 3) {
+                console.log('📄 NEXT-PAGE DEBUG: Skipping header/footer/short text');
+                continue;
+            }
+            
+            continuationText += text + ' ';
+            foundValidContinuation = true;
+            console.log('📄 NEXT-PAGE DEBUG: Added to continuation:', text);
+            
+            // Stop if we find a period followed by uppercase (likely end of reference)
+            if (text.includes('.') && text.match(/\.\s*[A-Z]/)) {
+                console.log('📄 NEXT-PAGE DEBUG: Found end of reference pattern');
+                break;
+            }
+            
+            // Stop if we find DOI or URL (likely end of reference)
+            if (text.includes('doi:') || text.includes('http')) {
+                console.log('📄 NEXT-PAGE DEBUG: Found DOI/URL, likely end of reference');
+                break;
+            }
+            
+            // Reasonable length limit
+            if (continuationText.length > 500) {
+                console.log('📄 NEXT-PAGE DEBUG: Hit length limit');
+                break;
+            }
+        }
+        
+        console.log('📄 NEXT-PAGE DEBUG: Collected continuation text:', continuationText);
+        console.log('📄 NEXT-PAGE DEBUG: Found valid continuation:', foundValidContinuation);
+        
+        // Only return continuation if it looks valid and makes sense
+        if (foundValidContinuation && continuationText.trim().length > 10) {
+            // Basic sanity check: does this continuation make sense?
+            const combined = partialRefText + ' ' + continuationText;
+            
+            console.log('📄 NEXT-PAGE DEBUG: Combined text contains doi:', combined.includes('doi:'));
+            console.log('📄 NEXT-PAGE DEBUG: Combined text contains arXiv:', combined.includes('arXiv'));
+            console.log('📄 NEXT-PAGE DEBUG: Combined text contains abs/:', combined.includes('abs/'));
+            
+            // If the combined text has proper reference indicators, it's likely valid
+            if (combined.includes('doi:') || combined.includes('arXiv') || combined.includes('abs/')) {
+                console.log('📄 NEXT-PAGE DEBUG: Returning valid continuation');
+                return continuationText.trim();
+            } else {
+                console.log('📄 NEXT-PAGE DEBUG: No reference indicators found, rejecting continuation');
+            }
+        } else {
+            console.log('📄 NEXT-PAGE DEBUG: No valid continuation found (length or validity check failed)');
+        }
+        
+        return null;
+        
+    } catch (error) {
+        console.error('📄 NEXT-PAGE DEBUG: Error getting continuation from next page:', error);
+        return null;
+    }
 }

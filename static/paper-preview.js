@@ -183,18 +183,60 @@ function parseReferenceText(text) {
         abstract: null
     };
     
-    // Extract ArXiv ID
-    let arxivMatch = text.match(/arXiv(?:\s+preprint)?\s*arXiv[:\s]*([0-9]{4}\.[0-9]{4,5}(?:v\d+)?)/i);
-    if (!arxivMatch) {
-        // Try standard arXiv:xxxx.xxxxx or arXiv xxxx.xxxxx
-        arxivMatch = text.match(/arXiv[:\s]*([0-9]{4}\.[0-9]{4,5}(?:v\d+)?)/i);
+    // Extract ArXiv ID - handle multiple references in concatenated text
+    let targetArxivId = null;
+    
+    // If text contains multiple references, try to find the most relevant one
+    // Split by common reference separators and analyze each potential reference
+    const potentialRefs = text.split(/(?:\.\s+[A-Z][a-z]+\s+[A-Z])|(?:\.\s*\n\s*[A-Z])|(?:\.\s{2,}[A-Z])/);
+    
+    for (const refSection of potentialRefs) {
+        // Try different arXiv patterns in order of preference
+        let arxivMatch = null;
+        
+        // Try abs/xxxx.xxxxx format first (most specific to CoRR format)
+        arxivMatch = refSection.match(/abs\/([0-9]{4}\.[0-9]{4,5}(?:v\d+)?)/i);
+        if (arxivMatch) {
+            // Check if this section also contains the corresponding DOI
+            const hasCorrespondingDoi = refSection.match(new RegExp(`ARXIV\\.${arxivMatch[1].replace('.', '\\.')}`, 'i'));
+            if (hasCorrespondingDoi) {
+                targetArxivId = arxivMatch[1];
+                break;
+            }
+        }
+        
+        // Try ARXIV.xxxx.xxxxx in DOI format
+        if (!arxivMatch) {
+            arxivMatch = refSection.match(/ARXIV\.([0-9]{4}\.[0-9]{4,5}(?:v\d+)?)/i);
+            if (arxivMatch) {
+                targetArxivId = arxivMatch[1];
+                break;
+            }
+        }
+        
+        // Try standard arXiv patterns
+        if (!arxivMatch) {
+            arxivMatch = refSection.match(/arXiv(?:\s+preprint)?\s*arXiv[:\s]*([0-9]{4}\.[0-9]{4,5}(?:v\d+)?)/i);
+            if (!arxivMatch) {
+                arxivMatch = refSection.match(/arXiv[:\s]*([0-9]{4}\.[0-9]{4,5}(?:v\d+)?)/i);
+            }
+            if (arxivMatch) {
+                targetArxivId = arxivMatch[1];
+                break;
+            }
+        }
     }
-    if (!arxivMatch) {
-        // Fallback: any arXiv-like ID not part of a DOI
-        arxivMatch = text.match(/\b([0-9]{4}\.[0-9]{4,5}(?:v\d+)?)\b(?!\s*\/)/);
+    
+    // Fallback: if no specific match found, use the first occurrence
+    if (!targetArxivId) {
+        const fallbackMatch = text.match(/\b([0-9]{4}\.[0-9]{4,5}(?:v\d+)?)\b(?!\s*\/)/);
+        if (fallbackMatch) {
+            targetArxivId = fallbackMatch[1];
+        }
     }
-    if (arxivMatch) {
-        info.arxivId = arxivMatch[1];
+    
+    if (targetArxivId) {
+        info.arxivId = targetArxivId;
     }
     
     // Extract DOI
