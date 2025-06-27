@@ -202,57 +202,68 @@ def _render_main_content(user_id):
             )
         )
 
-@rt("/load_paper")
-def load_paper_by_id(arxiv_id: str = None, session=None, request=None):
-    """Load paper by arXiv ID from library"""
-    print(f"=== LOAD PAPER GET ROUTE ===")
-    print(f"arXiv ID: {arxiv_id}")
-    print(f"Request: {request}")
+@rt("/load_paper", methods=["GET", "POST"])
+async def load_paper_route(request):
+    """Handle both GET (from library) and POST (from main form)"""
+    print(f"=== LOAD PAPER ROUTE ===")
+    print(f"Method: {request.method}")
     
-    if arxiv_id:
-        # Convert arxiv_id to arxiv_url
-        arxiv_url = f"https://arxiv.org/abs/{arxiv_id}"
-        return load_paper_content(arxiv_url, session)
-    else:
-        # Check if there are query parameters
-        if request and hasattr(request, 'query_params'):
-            arxiv_id_param = request.query_params.get('arxiv_id')
-            print(f"arXiv ID from query params: {arxiv_id_param}")
-            if arxiv_id_param:
-                arxiv_url = f"https://arxiv.org/abs/{arxiv_id_param}"
-                return load_paper_content(arxiv_url, session)
+    session = request.session if hasattr(request, 'session') else {}
+    
+    if request.method == "GET":
+        # From library - expecting arxiv_id in query params
+        arxiv_id = request.query_params.get('arxiv_id')
+        print(f"GET - arXiv ID: {arxiv_id}")
         
-        return "No arXiv ID provided"
-
-@rt("/load_paper", methods=["POST"])
-def load_paper_from_url(arxiv_url: str, session=None):
-    print(f"=== LOAD PAPER POST ROUTE ===")
-    print(f"arXiv URL: {arxiv_url}")
-    return load_paper_content(arxiv_url, session)
+        if arxiv_id:
+            arxiv_url = f"https://arxiv.org/abs/{arxiv_id}"
+            return load_paper_content(arxiv_url, session)
+        else:
+            return "No arXiv ID provided"
+    
+    elif request.method == "POST":
+        # From main form - expecting arxiv_url in form data
+        try:
+            form_data = await request.form()
+            arxiv_url = form_data.get('arxiv_url')
+            print(f"POST - arXiv URL: {arxiv_url}")
+            
+            if arxiv_url:
+                return load_paper_content(arxiv_url, session)
+            else:
+                return "No arXiv URL provided"
+        except Exception as e:
+            print(f"Error getting form data: {e}")
+            return f"Error: {e}"
 
 def load_paper_content(arxiv_url: str, session=None):
     """Common function to load paper content"""
     paper_id = download_arxiv_pdf(arxiv_url)
     
-    # If user is logged in, offer to add to library
+    # If user is logged in, automatically add to library
     user_id = session.get('user_id') if session else None
-    add_to_library_button = ""
+    library_status = ""
+    
     if user_id:
         # Check if already in library
         existing = library(where=f"user_id = '{user_id}' AND arxiv_id = '{paper_id}'")
         if not existing:
-            add_to_library_button = Form(
-                Input(type="hidden", name="arxiv_url", value=arxiv_url),
-                Input(type="hidden", name="notes", value=""),
-                Button(f"Add to My Library", 
-                       type="submit",
-                       style="padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 4px; margin: 8px; cursor: pointer;"),
-                action="/add_paper",
-                method="post",
-                style="display: inline;"
-            )
+            # Automatically add to library
+            try:
+                library.insert(
+                    user_id=user_id,
+                    arxiv_id=paper_id,
+                    added_at=datetime.now().isoformat(),
+                    title="",  # Can be fetched later
+                    notes=""
+                )
+                print(f"Automatically added paper {paper_id} to {user_id}'s library")
+                library_status = Span("✓ Added to your library", style="color: #28a745; font-weight: 500; margin: 8px;")
+            except Exception as e:
+                print(f"Error auto-adding to library: {e}")
+                library_status = Span("⚠ Could not add to library", style="color: #ffc107; font-weight: 500; margin: 8px;")
         else:
-            add_to_library_button = Span("✓ Already in your library", style="color: #28a745; font-weight: 500; margin: 8px;")
+            library_status = Span("✓ Already in your library", style="color: #28a745; font-weight: 500; margin: 8px;")
     
     return Div(
         # Add debug info
@@ -260,7 +271,7 @@ def load_paper_content(arxiv_url: str, session=None):
         
         # Library status area
         Div(
-            add_to_library_button,
+            library_status,
             id="library-status",
             style="text-align: center; margin-bottom: 20px;"
         ),
