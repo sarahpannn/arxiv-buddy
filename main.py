@@ -84,7 +84,8 @@ def get(session=None, code: str = None):
         print("=== HANDLING OAUTH CALLBACK ===")
         try:
             # Use retr_info to combine token exchange and user info retrieval
-            user_info = google_client.retr_info(code, redirect_uri="http://localhost:5002/")
+            # user_info = google_client.retr_info(code, redirect_uri="https://wonderful-ruby-divides-86r.pla.sh/")
+            user_info = google_client.retr_info(code, redirect_uri="http://localhost:5002/")  # type: ignore
             
             print(f"User info: {user_info}")
             
@@ -201,8 +202,36 @@ def _render_main_content(user_id):
             )
         )
 
+@rt("/load_paper")
+def load_paper_by_id(arxiv_id: str = None, session=None, request=None):
+    """Load paper by arXiv ID from library"""
+    print(f"=== LOAD PAPER GET ROUTE ===")
+    print(f"arXiv ID: {arxiv_id}")
+    print(f"Request: {request}")
+    
+    if arxiv_id:
+        # Convert arxiv_id to arxiv_url
+        arxiv_url = f"https://arxiv.org/abs/{arxiv_id}"
+        return load_paper_content(arxiv_url, session)
+    else:
+        # Check if there are query parameters
+        if request and hasattr(request, 'query_params'):
+            arxiv_id_param = request.query_params.get('arxiv_id')
+            print(f"arXiv ID from query params: {arxiv_id_param}")
+            if arxiv_id_param:
+                arxiv_url = f"https://arxiv.org/abs/{arxiv_id_param}"
+                return load_paper_content(arxiv_url, session)
+        
+        return "No arXiv ID provided"
+
 @rt("/load_paper", methods=["POST"])
-def load_paper(arxiv_url: str, session=None):
+def load_paper_from_url(arxiv_url: str, session=None):
+    print(f"=== LOAD PAPER POST ROUTE ===")
+    print(f"arXiv URL: {arxiv_url}")
+    return load_paper_content(arxiv_url, session)
+
+def load_paper_content(arxiv_url: str, session=None):
+    """Common function to load paper content"""
     paper_id = download_arxiv_pdf(arxiv_url)
     
     # If user is logged in, offer to add to library
@@ -337,6 +366,7 @@ def remove_paper_route(item_id: int, session):
 
 if __name__ == "__main__":
     serve(host="localhost", port=5002)
+    # serve()
 
 def download_arxiv_pdf(arxiv_url):
     """Download PDF from ArXiv URL"""

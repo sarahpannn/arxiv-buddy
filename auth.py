@@ -68,6 +68,7 @@ def login_page():
     try:
         # Use the OAuth middleware's default redirect path
         oauth_link = google_client.login_link(redirect_uri="http://localhost:5002/")  # type: ignore
+        # oauth_link = google_client.login_link(redirect_uri="https://wonderful-ruby-divides-86r.pla.sh/")  # type: ignore
         print(f"Generated OAuth link: {oauth_link}")
     except Exception as e:
         print(f"Error generating OAuth link: {e}")
