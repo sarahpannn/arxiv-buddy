@@ -1,16 +1,36 @@
 from fasthtml.common import *
+from fasthtml.oauth import GoogleAppClient
 from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
+from starlette.responses import RedirectResponse
 import requests
 import re
 import os
+from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+print("=== MAIN.PY MODULE LOADED ===")
+
+# Import our modules
+from models import db, users, library, User, LibraryItem
+from auth import google_client, Auth, login_page, logout, require_auth
+from library import library_page, add_paper_page, add_paper, remove_paper
 
 # Create static directory if it doesn't exist
 os.makedirs("static", exist_ok=True)
+os.makedirs("data", exist_ok=True)
 
 # Create the FastAPI app instance first
 app = FastAPI()
+
+# Add session middleware with secret key
+session_secret = os.getenv("SESSION_SECRET", "dev-secret-change-in-production")
+app.add_middleware(SessionMiddleware, secret_key=session_secret)
 
 origins = [
     "http://127.0.0.1:8000",
@@ -32,32 +52,80 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Create fast_app with our FastAPI instance
 app, rt = fast_app(app=app)
 
-def download_arxiv_pdf(arxiv_url):
-    """Download PDF from ArXiv URL"""
-    # Extract paper ID from URL
-    paper_id = re.search(r'arxiv\.org/abs/([^/]+)', arxiv_url)
-    if not paper_id:
-        paper_id = re.search(r'arxiv\.org/pdf/([^/]+)', arxiv_url)
-    
-    if not paper_id:
-        raise ValueError("Invalid ArXiv URL")
-    
-    paper_id = paper_id.group(1)
-    pdf_url = f"https://arxiv.org/pdf/{paper_id}.pdf"
-    
-    response = requests.get(pdf_url)
-    response.raise_for_status()
-    
-    # Save to static directory so it can be served
-    pdf_path = f"static/{paper_id}.pdf"
-    with open(pdf_path, 'wb') as f:
-        f.write(response.content)
-    
-    return paper_id
+# Initialize OAuth - but we're handling OAuth manually, so just create the client
+# oauth = Auth(app, google_client, skip=['/', '/test', '/login', '/logout', '/static'], redir_path='/auth_redirect')
+
+# Add auth routes
+@rt("/login")
+def login_route():
+    print("=== LOGIN ROUTE REGISTERED ===")
+    return login_page()
+
+@rt("/test")
+def test_route():
+    print("=== TEST ROUTE CALLED ===")
+    return "Test route working!"
+
+@rt("/logout")
+def logout_route(session):
+    print("=== LOGOUT ROUTE CALLED ===")
+    print(f"Session in logout route: {session}")
+    return logout(session)
 
 @rt("/")
-def get():
-    return Titled("", 
+def get(session=None, code: str = None):
+    print("=== MAIN ROUTE CALLED ===")
+    print("Session:", session)
+    print("Session type:", type(session))
+    print("Code parameter:", code)
+    
+    # Handle OAuth callback
+    if code:
+        print("=== HANDLING OAUTH CALLBACK ===")
+        try:
+            # Use retr_info to combine token exchange and user info retrieval
+            user_info = google_client.retr_info(code, redirect_uri="http://localhost:5002/")
+            
+            print(f"User info: {user_info}")
+            
+            # Extract user details (user_info is a dict)
+            user_id = user_info['sub']  # 'sub' is the Google user ID
+            email = user_info.get('email', '')
+            username = user_info.get('name', '') or email.split('@')[0]
+            
+            # Create/update user in database
+            if user_id not in users:
+                users.insert(
+                    id=user_id,
+                    email=email,
+                    username=username,
+                    provider='google',
+                    created_at=datetime.now().isoformat()
+                )
+                print(f"Created new user: {username}")
+            else:
+                print(f"User already exists: {username}")
+            
+            # Set session
+            session['user_id'] = user_id
+            session['provider'] = 'google'
+            print(f"Session after OAuth: {session}")
+            
+            # Redirect to library
+            return RedirectResponse('/library', status_code=303)
+            
+        except Exception as e:
+            print(f"OAuth error: {e}")
+            import traceback
+            traceback.print_exc()
+            return RedirectResponse('/login?error=oauth_failed', status_code=303)
+    
+    if session:
+        print("Session keys:", list(session.keys()) if hasattr(session, 'keys') else 'No keys method')
+        print("User ID in session:", session.get('user_id'))
+    user_id = session.get('user_id') if session else None
+    
+    return Titled("Arxiv Buddy", 
         Script(src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"),
         Link(rel="stylesheet", href="/static/style.css"),
         
@@ -65,17 +133,10 @@ def get():
             Div(
                 H1("Arxiv Buddy", style="font-size: 2.2rem; font-weight: 700; margin-bottom: 0.5rem; letter-spacing: -1px;"),
                 P("Welcome to the V0 Alpha of Arxiv Buddy.", Br(), "Graciously accepting feedback at ", A('@spantacular on X', href='https://x.com/spantacular'), style="color: #666; font-size: 1.1rem; margin-bottom: 2rem;"),
-                Form(
-                    Input(placeholder="Enter ArXiv URL (e.g., https://arxiv.org/abs/2309.15028)", 
-                          name="arxiv_url", 
-                          type="url", 
-                          required=True,
-                          style="width: 100%; max-width: 700px; padding: 16px 18px; margin-bottom: 18px; font-size: 1.1rem; border-radius: 8px; border: 1.5px solid #ccc; background: #fafbfc;"),
-                    Button("Load PDF", type="submit", style="padding: 14px 32px; font-size: 1.1rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(66,133,244,0.08); font-weight: 600;"),
-                    action="/load_paper", 
-                    method="post",
-                    style="margin-bottom: 0;"
-                ),
+                
+                # Show different content based on login status
+                _render_main_content(user_id),
+                
                 style="background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.07); padding: 44px 40px 36px 40px; max-width: 900px; margin: 0 auto;"
             ),
             Div(
@@ -95,13 +156,85 @@ def get():
         """)
     )
 
+def _render_main_content(user_id):
+    """Render different content based on login status"""
+    if user_id:
+        # User is logged in
+        user = users[user_id]
+        return Div(
+            P(f"Welcome back, {user.username}!", style="color: #4285f4; font-weight: 500; margin-bottom: 1rem;"),
+            A("View My Library", href="/library", 
+              style="display: inline-block; padding: 12px 24px; background: #4285f4; color: white; text-decoration: none; border-radius: 8px; margin: 8px; font-weight: 500;"),
+            A("Logout", href="/logout", 
+              style="display: inline-block; padding: 8px 16px; background: #666; color: white; text-decoration: none; border-radius: 6px; margin: 8px;"),
+            Br(), Br(),
+            Form(
+                Input(placeholder="Enter ArXiv URL (e.g., https://arxiv.org/abs/2309.15028)", 
+                      name="arxiv_url", 
+                      type="url", 
+                      required=True,
+                      style="width: 100%; max-width: 700px; padding: 16px 18px; margin-bottom: 18px; font-size: 1.1rem; border-radius: 8px; border: 1.5px solid #ccc; background: #fafbfc;"),
+                Button("Load PDF", type="submit", style="padding: 14px 32px; font-size: 1.1rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(66,133,244,0.08); font-weight: 600;"),
+                action="/load_paper", 
+                method="post",
+                style="margin-bottom: 0;"
+            )
+        )
+    else:
+        # User is not logged in
+        return Div(
+            P("Sign in to save papers to your personal library!", style="color: #666; margin-bottom: 1.5rem;"),
+            A("Sign in with Google", href="/login", 
+              style="display: inline-block; padding: 16px 32px; background: #4285f4; color: white; text-decoration: none; border-radius: 8px; font-size: 1.1rem; font-weight: 500; box-shadow: 0 2px 8px rgba(66,133,244,0.2);"),
+            Br(), Br(),
+            P("Or try it out without signing in:", style="color: #666; margin-top: 2rem; margin-bottom: 1rem;"),
+            Form(
+                Input(placeholder="Enter ArXiv URL (e.g., https://arxiv.org/abs/2309.15028)", 
+                      name="arxiv_url", 
+                      type="url", 
+                      required=True,
+                      style="width: 100%; max-width: 700px; padding: 16px 18px; margin-bottom: 18px; font-size: 1.1rem; border-radius: 8px; border: 1.5px solid #ccc; background: #fafbfc;"),
+                Button("Load PDF", type="submit", style="padding: 14px 32px; font-size: 1.1rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(66,133,244,0.08); font-weight: 600;"),
+                action="/load_paper", 
+                method="post",
+                style="margin-bottom: 0;"
+            )
+        )
+
 @rt("/load_paper", methods=["POST"])
-def load_paper(arxiv_url: str):
+def load_paper(arxiv_url: str, session=None):
     paper_id = download_arxiv_pdf(arxiv_url)
+    
+    # If user is logged in, offer to add to library
+    user_id = session.get('user_id') if session else None
+    add_to_library_button = ""
+    if user_id:
+        # Check if already in library
+        existing = library(where=f"user_id = '{user_id}' AND arxiv_id = '{paper_id}'")
+        if not existing:
+            add_to_library_button = Form(
+                Input(type="hidden", name="arxiv_url", value=arxiv_url),
+                Input(type="hidden", name="notes", value=""),
+                Button(f"Add to My Library", 
+                       type="submit",
+                       style="padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 4px; margin: 8px; cursor: pointer;"),
+                action="/add_paper",
+                method="post",
+                style="display: inline;"
+            )
+        else:
+            add_to_library_button = Span("✓ Already in your library", style="color: #28a745; font-weight: 500; margin: 8px;")
     
     return Div(
         # Add debug info
         Script("""console.log('PDF loading response received');"""),
+        
+        # Library status area
+        Div(
+            add_to_library_button,
+            id="library-status",
+            style="text-align: center; margin-bottom: 20px;"
+        ),
         
         # Empty PDF viewer content div - will be populated by JavaScript
         Div(
@@ -147,9 +280,85 @@ def load_paper(arxiv_url: str):
             ),
             lang='en'
         )
-        
-        
     )
 
+# Add library routes
+@rt("/library")
+def library_route(session):
+    return library_page(session)
+
+@rt("/add_paper", methods=["GET", "POST"])
+async def add_paper_route(request):
+    print(f"=== ADD PAPER ROUTE CALLED ===")
+    print(f"Request method: {request.method}")
+    
+    if request.method == "GET":
+        print("Handling GET request")
+        session = request.session if hasattr(request, 'session') else {}
+        return add_paper_page(session)
+    
+    elif request.method == "POST":
+        print("=== HANDLING POST REQUEST ===")
+        
+        # For FastHTML, we need to handle form data differently
+        # Let's try to get form data from the request
+        try:
+            # Check if it's a FastHTML request with form data
+            if hasattr(request, 'form'):
+                form_data = await request.form()
+                arxiv_url = form_data.get('arxiv_url')
+                notes = form_data.get('notes', '')
+            else:
+                # Try to get from query params as fallback
+                arxiv_url = request.query_params.get('arxiv_url')
+                notes = request.query_params.get('notes', '')
+                
+            print(f"ArXiv URL: {arxiv_url}")
+            print(f"Notes: {notes}")
+            
+            session = request.session if hasattr(request, 'session') else {}
+            print(f"Session: {session}")
+            
+            if not arxiv_url:
+                print("No arxiv_url provided")
+                return "No ArXiv URL provided"
+            
+            return add_paper(arxiv_url, notes, session)
+            
+        except Exception as e:
+            print(f"Error handling POST: {e}")
+            import traceback
+            traceback.print_exc()
+            return f"Error: {e}"
+
+@rt("/library/{item_id}", methods=["DELETE"])
+def remove_paper_route(item_id: int, session):
+    return remove_paper(item_id, session)
+
 if __name__ == "__main__":
-    serve()
+    serve(host="localhost", port=5002)
+
+def download_arxiv_pdf(arxiv_url):
+    """Download PDF from ArXiv URL"""
+    # Extract paper ID from URL
+    paper_id = re.search(r'arxiv\.org/abs/([^/]+)', arxiv_url)
+    if not paper_id:
+        paper_id = re.search(r'arxiv\.org/pdf/([^/]+)', arxiv_url)
+    
+    if not paper_id:
+        raise ValueError("Invalid ArXiv URL")
+    
+    paper_id = paper_id.group(1)
+    pdf_url = f"https://arxiv.org/pdf/{paper_id}.pdf"
+    
+    response = requests.get(pdf_url)
+    response.raise_for_status()
+    
+    # Save to static directory so it can be served
+    pdf_path = f"static/{paper_id}.pdf"
+    with open(pdf_path, 'wb') as f:
+        f.write(response.content)
+    
+    return paper_id
+
+print("=== ROUTES REGISTERED ===")
