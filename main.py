@@ -8,6 +8,7 @@ from starlette.responses import RedirectResponse
 import requests
 import re
 import os
+import json
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -20,6 +21,7 @@ print("=== MAIN.PY MODULE LOADED ===")
 from models import db, users, library, User, LibraryItem
 from auth import google_client, Auth, login_page, logout, require_auth
 from library import library_page, add_paper_page, add_paper, remove_paper
+from source_manager import download_paper_content, extract_paper_id_from_url, get_source_manager
 
 # Create static directory if it doesn't exist
 os.makedirs("static", exist_ok=True)
@@ -238,7 +240,15 @@ async def load_paper_route(request):
 
 def load_paper_content(arxiv_url: str, session=None):
     """Common function to load paper content"""
-    paper_id = download_arxiv_pdf(arxiv_url)
+    # Extract paper ID and use new hybrid download system
+    paper_id = extract_paper_id_from_url(arxiv_url)
+    
+    # Use new source manager for downloading
+    source_manager = get_source_manager()
+    download_result = download_paper_content(paper_id, source_manager)
+    
+    # Use the paper_id from download result (cleaned)
+    paper_id = download_result['paper_id']
     
     # If user is logged in, automatically add to library
     user_id = session.get('user_id') if session else None
@@ -265,6 +275,18 @@ def load_paper_content(arxiv_url: str, session=None):
         else:
             library_status = Span("✓ Already in your library", style="color: #28a745; font-weight: 500; margin: 8px;")
     
+    # Add source processing status for debugging
+    source_info = ""
+    if download_result['strategy'] == 'source' and download_result['source_structure']:
+        if download_result['parsed_latex']:
+            stats = download_result['parsed_latex']['stats']
+            source_info = Span(f"📄 Source: {stats['total_citations']} citations, {stats['total_figures']} figures", 
+                             style="color: #007bff; font-weight: 500; margin: 8px;")
+        else:
+            source_info = Span("📄 Source files available", style="color: #007bff; font-weight: 500; margin: 8px;")
+    elif download_result['errors']:
+        source_info = Span("⚠ Using PDF fallback", style="color: #ffc107; font-weight: 500; margin: 8px;")
+    
     return Div(
         # Add debug info
         Script("""console.log('PDF loading response received');"""),
@@ -272,6 +294,7 @@ def load_paper_content(arxiv_url: str, session=None):
         # Library status area
         Div(
             library_status,
+            source_info,
             id="library-status",
             style="text-align: center; margin-bottom: 20px;"
         ),
@@ -308,8 +331,27 @@ def load_paper_content(arxiv_url: str, session=None):
                 Script(src='/static/test-utilities.js', type='module'),
                 Script(src='/static/pdf-viewer.js', type='module'),
                 Script(f"""
+                    // Set global LaTeX data for the paper
+                    window.latexData = {json.dumps(download_result.get('parsed_latex', None))};
+                    window.paperStrategy = '{download_result['strategy']}';
+                    window.currentPaperId = '{paper_id}';
+                    
+                    // Debug the LaTeX data loading
+                    console.log('🚀 LATEX DATA LOADED:', {{
+                        hasData: !!window.latexData,
+                        strategy: window.paperStrategy,
+                        paperId: window.currentPaperId,
+                        citationCount: window.latexData ? Object.keys(window.latexData.citation_mapping || {{}}).length : 0,
+                        figureCount: window.latexData ? Object.keys(window.latexData.figures || {{}}).length : 0
+                    }});
+                    
                     // Wait for the page to load, then call renderPDF
                     window.addEventListener('load', function() {{
+                        console.log('🚀 PAGE LOADED - LaTeX data status:', {{
+                            hasData: !!window.latexData,
+                            strategy: window.paperStrategy
+                        }});
+                        
                         if (window.renderPDF) {{
                             renderPDF('/static/{paper_id}.pdf');
                         }} else {{
@@ -374,6 +416,32 @@ async def add_paper_route(request):
 @rt("/library/{item_id}", methods=["DELETE"])
 def remove_paper_route(item_id: int, session):
     return remove_paper(item_id, session)
+
+@rt("/api/paper/{paper_id}/latex", methods=["GET"])
+def get_latex_data_route(paper_id: str):
+    """API endpoint to get parsed LaTeX data for a paper"""
+    try:
+        source_manager = get_source_manager()
+        parsed_data = source_manager.parse_latex_content(paper_id)
+        
+        if parsed_data:
+            return {
+                "success": True,
+                "paper_id": paper_id,
+                "data": parsed_data
+            }
+        else:
+            return {
+                "success": False,
+                "paper_id": paper_id,
+                "error": "No LaTeX data available (paper may not have source files)"
+            }
+    except Exception as e:
+        return {
+            "success": False,
+            "paper_id": paper_id,
+            "error": str(e)
+        }
 
 if __name__ == "__main__":
     serve(host="localhost", port=5002)

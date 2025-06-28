@@ -2,8 +2,15 @@
 
 // Function to display reference information in the right pane
 window.displayReferenceInfo = function(title, content, description) {
+    
     const rightPane = document.getElementById('info-pane');
     if (rightPane) {
+        // Check if we have LaTeX data for enhanced display
+        if (window.latexData && window.paperStrategy === 'source') {
+            displayEnhancedReferenceInfo(title, content, description);
+            return;
+        }
+        
         // Show loading state first
         rightPane.innerHTML = `
             <h3>${title}</h3>
@@ -474,4 +481,206 @@ function generateEnhancedPaperPreview(paperInfo, additionalInfo) {
     
     html += '</div>';
     return html;
+}
+
+// Enhanced function to display reference info using LaTeX data
+function displayEnhancedReferenceInfo(title, content, description) {
+    
+    const rightPane = document.getElementById('info-pane');
+    if (!rightPane) return;
+    
+    // Try to extract citation key or find matching reference in LaTeX data
+    const latexReference = findBestLatexReference(content);
+    
+    if (latexReference) {
+        
+        const ref = latexReference.reference;
+        const citations = latexReference.citations;
+        
+        rightPane.innerHTML = `
+            <h3>${title}</h3>
+            
+            ${generateLatexReferencePreview(ref, latexReference.key)}
+            
+            <div id="abstract-placeholder" style="margin: 0;"></div>
+            
+            <div style="margin: 15px 0; padding: 10px; background: #f8f9fa; border-left: 3px solid #28a745; border-radius: 3px;">
+                <div style="font-size: 11px; color: #888; margin-bottom: 4px;">📊 CITATION ANALYSIS:</div>
+                <div style="font-size: 13px; color: #333;">
+                    <strong>Cited ${citations.length} time(s)</strong> in this paper
+                </div>
+                ${generateCitationContexts(citations)}
+            </div>
+            
+            <p style="color: #666; font-style: italic; margin-top: 15px;">${description} Enhanced with LaTeX source data.</p>
+            <hr style="margin: 20px 0;">
+            <small style="color: #999;">Click on other citations to see their references here.</small>
+        `;
+    } else {
+        showLatexCitationBrowser(title, content, description);
+    }
+}
+
+// Function to find best matching LaTeX reference
+function findBestLatexReference(content) {
+    if (!window.latexData || !window.latexData.citation_mapping) {
+        return null;
+    }
+    
+    // Try to extract meaningful words from the content for matching
+    const words = content.toLowerCase().match(/\b\w{3,}\b/g) || [];
+    const searchTerms = words.filter(word => 
+        !['the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'man', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use'].includes(word)
+    );
+    
+    let bestMatch = null;
+    let bestScore = 0;
+    
+    for (const [key, mapping] of Object.entries(window.latexData.citation_mapping)) {
+        const reference = mapping.reference;
+        let score = 0;
+        
+        // Search in title, authors, and other text
+        const searchText = [
+            reference.title || '',
+            reference.authors || '',
+            reference.venue || '',
+            reference.raw_entry || ''
+        ].join(' ').toLowerCase();
+        
+        // Count matching terms
+        for (const term of searchTerms) {
+            if (searchText.includes(term)) {
+                score += 1;
+            }
+        }
+        
+        // Bonus for exact key matches or year matches
+        if (content.includes(key)) {
+            score += 10;
+        }
+        
+        if (reference.year && content.includes(reference.year)) {
+            score += 3;
+        }
+        
+        if (score > bestScore) {
+            bestScore = score;
+            bestMatch = {
+                key: key,
+                reference: reference,
+                citations: mapping.citations,
+                score: score
+            };
+        }
+    }
+    
+    return bestScore > 0 ? bestMatch : null;
+}
+
+// Function to generate LaTeX reference preview
+function generateLatexReferencePreview(ref, key) {
+    let html = '<div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: white; margin: 10px 0;">';
+    
+    // Title
+    if (ref.title) {
+        html += `<h4 style="margin: 0 0 10px 0; color: #1976d2; line-height: 1.3;">${ref.title}</h4>`;
+    } else {
+        html += `<h4 style="margin: 0 0 10px 0; color: #666;">📄 Reference [${key}]</h4>`;
+    }
+    
+    // Authors
+    if (ref.authors) {
+        html += `<p style="margin: 5px 0; color: #555;"><strong>Authors:</strong> ${ref.authors}</p>`;
+    }
+    
+    // Publication info
+    let pubInfo = [];
+    if (ref.venue) pubInfo.push(ref.venue);
+    if (ref.year) pubInfo.push(ref.year);
+    
+    if (pubInfo.length > 0) {
+        html += `<p style="margin: 5px 0; color: #555;"><strong>Published:</strong> ${pubInfo.join(', ')}</p>`;
+    }
+    
+    // Identifiers
+    let identifiers = [];
+    if (ref.arxiv_id) {
+        identifiers.push(`<a href="https://arxiv.org/abs/${ref.arxiv_id}" target="_blank" style="color: #1976d2; text-decoration: none;">📖 ArXiv: ${ref.arxiv_id}</a>`);
+    }
+    if (ref.doi) {
+        identifiers.push(`<a href="https://doi.org/${ref.doi}" target="_blank" style="color: #1976d2; text-decoration: none;">🔗 DOI: ${ref.doi}</a>`);
+    }
+    if (ref.url) {
+        identifiers.push(`<a href="${ref.url}" target="_blank" style="color: #1976d2; text-decoration: none;">🌐 Link</a>`);
+    }
+    
+    if (identifiers.length > 0) {
+        html += `<p style="margin: 10px 0 5px 0; font-size: 13px;">${identifiers.join(' | ')}</p>`;
+    }
+    
+    html += '</div>';
+    return html;
+}
+
+// Function to generate citation contexts
+function generateCitationContexts(citations) {
+    if (!citations || citations.length === 0) {
+        return '';
+    }
+    
+    let html = '<div style="margin-top: 10px; max-height: 120px; overflow-y: auto;">';
+    
+    citations.slice(0, 3).forEach((citation, i) => {
+        html += `
+            <div style="margin: 8px 0; padding: 8px; background: white; border-radius: 4px; border-left: 3px solid #81c784;">
+                <div style="font-size: 12px; color: #666; margin-bottom: 4px;">
+                    <strong>Context ${i + 1}:</strong> ${citation.file_name}:${citation.line_number} (${citation.command})
+                </div>
+                <div style="font-size: 11px; color: #333; line-height: 1.3;">
+                    "${citation.context.substring(0, 150)}..."
+                </div>
+            </div>
+        `;
+    });
+    
+    if (citations.length > 3) {
+        html += `<div style="margin-top: 8px; font-size: 12px; color: #666; text-align: center;">... and ${citations.length - 3} more citations</div>`;
+    }
+    
+    html += '</div>';
+    return html;
+}
+
+// Function to show LaTeX citation browser when no specific match
+function showLatexCitationBrowser(title, content, description) {
+    const rightPane = document.getElementById('info-pane');
+    if (!rightPane) return;
+    
+    const totalCitations = Object.keys(window.latexData.citation_mapping || {}).length;
+    const totalFigures = Object.keys(window.latexData.figures || {}).length;
+    
+    rightPane.innerHTML = `
+        <h3>${title}</h3>
+        
+        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f8f9fa; margin: 10px 0;">
+            <h4 style="margin: 0 0 10px 0; color: #1976d2;">📚 LaTeX Source Analysis</h4>
+            <p style="margin: 5px 0; color: #555;"><strong>Total Citations:</strong> ${totalCitations}</p>
+            <p style="margin: 5px 0; color: #555;"><strong>Total Figures:</strong> ${totalFigures}</p>
+            <p style="margin: 10px 0 5px 0; font-size: 13px; color: #666;">
+                This paper has LaTeX source data available. Click on specific citations or figures for detailed information.
+            </p>
+        </div>
+        
+        <div style="margin: 10px 0; padding: 4px 10px; background: #fff3e0; border-left: 3px solid #ff9800; border-radius: 3px;">
+            <div style="font-size: 11px; color: #888; margin-bottom: 4px;">ORIGINAL CITATION:</div>
+            <div style="font-size: 12px; line-height: 1.1; color: #666; max-height: 45px; overflow-y: auto; overflow-x: hidden;">
+                ${content}
+            </div>
+        </div>
+        
+        <p style="color: #666; font-style: italic; margin-top: 15px;">${description}</p>
+        <hr style="margin: 20px 0;">
+        <small style="color: #999;">LaTeX-enhanced citation system active. Click citations for instant lookup.</small>
+    `;
 }

@@ -41,7 +41,9 @@ window.createLinkOverlays = function(annotations, pageContainer, canvas, viewpor
                 } else if (annotation.dest) {
                     // Internal link (like to references)
                     const lastName = extractLastNameNearAnnotation(annotation, textContent.items);
-                    window.findAndDisplayReference(annotation, pdf, lastName);
+                    const citationKey = extractCitationKeyFromAnnotation(annotation, textContent.items);
+                    console.log('🔍 Extracted citation key:', citationKey);
+                    window.findAndDisplayReference(annotation, pdf, lastName, citationKey);
                 } else if (annotation.action) {
                     // Action-based link
                     window.displayReferenceInfo('Link Action', JSON.stringify(annotation.action), 'This is a PDF action link.');
@@ -142,6 +144,69 @@ function extractLastNameNearAnnotation(annotation, textItems) {
 
     const match = line.match(/([A-Z][a-zA-Z]{2,})/);
     return match ? match[1] : null;
+}
+
+// Helper to extract the actual citation key/text that was clicked
+function extractCitationKeyFromAnnotation(annotation, textItems) {
+    if (!annotation.rect || !textItems) return null;
+    
+    const [x1, y1, x2, y2] = annotation.rect;
+    const centerX = (x1 + x2) / 2;
+    const centerY = (y1 + y2) / 2;
+    
+    console.log('🔍 Looking for citation text at coordinates:', { centerX, centerY });
+    
+    // Find text items that overlap with the annotation rectangle
+    let citationText = '';
+    let closestDistance = Infinity;
+    
+    for (const item of textItems) {
+        if (!item.transform) continue;
+        
+        const itemX = item.transform[4];
+        const itemY = item.transform[5];
+        
+        // Check if this text item is within the annotation bounds
+        const distance = Math.sqrt(Math.pow(itemX - centerX, 2) + Math.pow(itemY - centerY, 2));
+        
+        if (distance < 50 && distance < closestDistance) { // Within 50 pixels
+            closestDistance = distance;
+            citationText = item.str.trim();
+        }
+    }
+    
+    if (citationText) {
+        console.log('🔍 Found citation text:', citationText);
+        
+        // Try to extract citation patterns from the text
+        // Pattern 1: [author_year] format
+        let match = citationText.match(/\[([^\]]+)\]/);
+        if (match) {
+            return match[1];
+        }
+        
+        // Pattern 2: \cite{key} format (if raw LaTeX somehow visible)
+        match = citationText.match(/\\cite\{([^}]+)\}/);
+        if (match) {
+            return match[1];
+        }
+        
+        // Pattern 3: Just return the text if it looks like a citation key
+        if (citationText.match(/^[a-zA-Z][a-zA-Z0-9_]*$/)) {
+            return citationText;
+        }
+        
+        // Pattern 4: Author names or numbers - extract meaningful parts
+        if (citationText.match(/^\d+$/)) {
+            return citationText; // Numbered citation
+        }
+        
+        // Pattern 5: Return the raw text for further processing
+        return citationText;
+    }
+    
+    console.log('❌ No citation text found near annotation');
+    return null;
 }
 
 // Function to position a single link overlay

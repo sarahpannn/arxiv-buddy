@@ -3,6 +3,27 @@
 // Function to extract reference text at a specific destination
 window.extractReferenceAtDestination = async function(textContent, dest, page, citingLastName, pdf = null) {
     try {
+        console.log('🔬 EXTRACT REFERENCE DEBUG: extractReferenceAtDestination called');
+        console.log('🔬 citingLastName:', citingLastName);
+        console.log('🔬 LaTeX data check:', {
+            hasLatexData: !!window.latexData,
+            paperStrategy: window.paperStrategy,
+            shouldUseLaTeX: window.latexData && window.paperStrategy === 'source'
+        });
+        
+        // Check if we have LaTeX data available for fast lookup
+        if (window.latexData && window.paperStrategy === 'source') {
+            console.log('🔬 LaTeX-based reference lookup available');
+            const latexResult = findReferenceInLatexData(citingLastName, dest);
+            if (latexResult) {
+                console.log('✅ Found reference in LaTeX data:', latexResult.key);
+                return formatLatexReference(latexResult);
+            } else {
+                console.log('⚠️ No match in LaTeX data, falling back to PDF extraction');
+            }
+        } else {
+            console.log('🔬 Using PDF extraction (no LaTeX data or wrong strategy)');
+        }
         const textItems = textContent.items;
         let targetY = null;
         if (dest[1] === 'XYZ' && dest.length > 3 && typeof dest[3] === 'number') {
@@ -385,4 +406,128 @@ async function getContinuationFromNextPage(currentPage, pdf, partialRefText) {
         console.error('📄 NEXT-PAGE DEBUG: Error getting continuation from next page:', error);
         return null;
     }
+}
+
+// LaTeX-based reference lookup functions
+function findReferenceInLatexData(citingLastName, dest) {
+    if (!window.latexData || !window.latexData.citation_mapping) {
+        return null;
+    }
+    
+    console.log('🔍 Searching LaTeX data for:', citingLastName);
+    
+    // If we have a citing last name, search for it in references
+    if (citingLastName) {
+        for (const [key, mapping] of Object.entries(window.latexData.citation_mapping)) {
+            const reference = mapping.reference;
+            
+            // Check if the last name appears in authors or title
+            const authorsMatch = reference.authors && 
+                reference.authors.toLowerCase().includes(citingLastName.toLowerCase());
+            const titleMatch = reference.title && 
+                reference.title.toLowerCase().includes(citingLastName.toLowerCase());
+            
+            if (authorsMatch || titleMatch) {
+                console.log('📖 Found LaTeX reference match for:', citingLastName, 'key:', key);
+                return {
+                    key: key,
+                    reference: reference,
+                    citations: mapping.citations
+                };
+            }
+        }
+    }
+    
+    // Fallback: try to find any reference (useful for generic clicks)
+    const firstMapping = Object.values(window.latexData.citation_mapping)[0];
+    if (firstMapping) {
+        console.log('📖 Using first available reference as fallback');
+        return {
+            key: Object.keys(window.latexData.citation_mapping)[0],
+            reference: firstMapping.reference,
+            citations: firstMapping.citations
+        };
+    }
+    
+    return null;
+}
+
+function formatLatexReference(latexResult) {
+    const ref = latexResult.reference;
+    const key = latexResult.key;
+    
+    // Build a formatted reference string
+    let formatted = `[${key}] `;
+    
+    if (ref.authors) {
+        formatted += ref.authors;
+        if (ref.year) {
+            formatted += ` (${ref.year})`;
+        }
+        formatted += '. ';
+    }
+    
+    if (ref.title) {
+        formatted += `"${ref.title}". `;
+    }
+    
+    if (ref.venue) {
+        formatted += `${ref.venue}. `;
+    }
+    
+    if (ref.doi) {
+        formatted += `DOI: ${ref.doi}. `;
+    }
+    
+    if (ref.arxiv_id) {
+        formatted += `arXiv: ${ref.arxiv_id}. `;
+    }
+    
+    if (ref.url) {
+        formatted += `URL: ${ref.url}`;
+    }
+    
+    // Add context information
+    const citations = latexResult.citations;
+    if (citations && citations.length > 0) {
+        formatted += `\n\n📍 Cited ${citations.length} time(s) in this paper:`;
+        citations.slice(0, 3).forEach((citation, i) => {
+            formatted += `\n  ${i + 1}. "${citation.context.substring(0, 100)}..." (${citation.file_name}:${citation.line_number})`;
+        });
+        if (citations.length > 3) {
+            formatted += `\n  ... and ${citations.length - 3} more`;
+        }
+    }
+    
+    return formatted;
+}
+
+// Enhanced function to find reference by citation numbers using LaTeX data
+window.findReferenceByNumbersLatex = function(citationNumbers) {
+    if (!window.latexData || !window.latexData.citation_mapping) {
+        return null;
+    }
+    
+    console.log('🔍 Looking for citation numbers in LaTeX data:', citationNumbers);
+    
+    let foundReferences = [];
+    
+    // Search through citation mapping
+    for (const [key, mapping] of Object.entries(window.latexData.citation_mapping)) {
+        const reference = mapping.reference;
+        
+        // Check if any citation number matches the key or appears in context
+        for (const citNum of citationNumbers) {
+            if (key.includes(citNum) || reference.raw_entry.includes(`[${citNum}]`)) {
+                foundReferences.push({
+                    number: citNum,
+                    key: key,
+                    formatted: formatLatexReference({ key, reference, citations: mapping.citations })
+                });
+                break;
+            }
+        }
+    }
+    
+    return foundReferences;
 }

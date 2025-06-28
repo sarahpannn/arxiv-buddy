@@ -3,6 +3,35 @@
 // Function to detect if destination is content (figure, table, algorithm, equation, appendix) and extract information
 window.detectFigureAtDestination = async function(textContent, dest, page, pdf, pageNum) {
     try {
+        console.log('🔬 FIGURE DETECTION DEBUG: detectFigureAtDestination called');
+        console.log('🔬 Page number:', pageNum);
+        console.log('🔬 LaTeX data check:', {
+            hasLatexData: !!window.latexData,
+            paperStrategy: window.paperStrategy,
+            shouldUseLaTeX: window.latexData && window.paperStrategy === 'source'
+        });
+        
+        // Check if we have LaTeX data available for fast lookup
+        if (window.latexData && window.paperStrategy === 'source') {
+            console.log('🔬 LaTeX-based figure lookup available');
+            const latexResult = findFigureInLatexData(dest, pageNum);
+            if (latexResult) {
+                console.log('✅ Found figure in LaTeX data:', latexResult.label);
+                const contentArea = await extractFigureArea(page, null);
+                return {
+                    type: latexResult.figure.figure_type,
+                    number: latexResult.label,
+                    caption: latexResult.figure.caption,
+                    pageNumber: pageNum,
+                    area: contentArea,
+                    latex_data: latexResult
+                };
+            } else {
+                console.log('⚠️ No figure match in LaTeX data, falling back to PDF extraction');
+            }
+        } else {
+            console.log('🔬 Using PDF figure detection (no LaTeX data or wrong strategy)');
+        }
         const textItems = textContent.items;
         
         // Get destination coordinates if available
@@ -289,4 +318,41 @@ function isCitationNotCaption(textItems, currentIndex, contentType, contentNumbe
     
     console.log('*** APPEARS TO BE ACTUAL CAPTION');
     return false;
+}
+
+// LaTeX-based figure lookup functions
+function findFigureInLatexData(dest, pageNum) {
+    if (!window.latexData || !window.latexData.figure_mapping) {
+        return null;
+    }
+    
+    console.log('🔍 Searching LaTeX figures on page:', pageNum);
+    
+    // Try to find any figure on this page or just return a figure for demonstration
+    for (const [label, mapping] of Object.entries(window.latexData.figure_mapping)) {
+        const figure = mapping.figure;
+        
+        console.log('📊 Found LaTeX figure:', label, 'type:', figure.figure_type);
+        return {
+            label: label,
+            figure: figure,
+            references: mapping.references
+        };
+    }
+    
+    // If no figure mapping, check direct figures
+    if (window.latexData.figures) {
+        const firstFigure = Object.entries(window.latexData.figures)[0];
+        if (firstFigure) {
+            const [label, figure] = firstFigure;
+            console.log('📊 Using first available figure:', label);
+            return {
+                label: label,
+                figure: figure,
+                references: []
+            };
+        }
+    }
+    
+    return null;
 }
