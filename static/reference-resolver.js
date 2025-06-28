@@ -502,10 +502,6 @@ function appendAbstractToExistingDisplay(abstract, arxivId, ref) {
                    style="display: inline-block; padding: 6px 12px; background: #007acc; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;">
                     📖 View on ArXiv
                 </a>
-                ${ref.url ? `<a href="${ref.url}" target="_blank" 
-                               style="display: inline-block; padding: 6px 12px; background: #6c757d; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;">
-                                🔗 Original Link
-                             </a>` : ''}
             </div>
         </div>
     `;
