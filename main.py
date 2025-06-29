@@ -86,8 +86,8 @@ def get(session=None, code: str = None):
         print("=== HANDLING OAUTH CALLBACK ===")
         try:
             # Use retr_info to combine token exchange and user info retrieval
-            # user_info = google_client.retr_info(code, redirect_uri="https://wonderful-ruby-divides-86r.pla.sh/")
-            user_info = google_client.retr_info(code, redirect_uri="http://localhost:5002/")  # type: ignore
+            user_info = google_client.retr_info(code, redirect_uri="https://wonderful-ruby-divides-86r.pla.sh/")
+            # user_info = google_client.retr_info(code, redirect_uri="http://localhost:5002/")  # type: ignore
             
             print(f"User info: {user_info}")
             
@@ -444,8 +444,8 @@ def get_latex_data_route(paper_id: str):
         }
 
 if __name__ == "__main__":
-    serve(host="localhost", port=5002)
-    # serve()
+    # serve(host="localhost", port=5002)
+    serve()
 
 def download_arxiv_pdf(arxiv_url):
     """Download PDF from ArXiv URL"""
