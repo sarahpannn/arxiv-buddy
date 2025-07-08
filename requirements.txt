@@ -7,3 +7,7 @@ python-dotenv
 Flask
 Flask-Login
 Flask-SQLAlchemy
+beautifulsoup4
+tqdm
+sentence-transformers
+numpy
