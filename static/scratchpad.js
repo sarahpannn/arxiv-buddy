@@ -91,11 +91,6 @@ class ScratchpadManager {
                         + Add Note
                     </div>
                 </div>
-                <div class="scratchpad-footer" style="padding: 16px 20px; border-top: 1px solid #e0e0e0; background: #f8f9fa; display: flex; gap: 8px;">
-                    <button class="scratchpad-export-btn" onclick="window.scratchpad.exportNotes('markdown')" style="flex: 1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; background: white; cursor: pointer; font-size: 12px;">Export MD</button>
-                    <button class="scratchpad-export-btn" onclick="window.scratchpad.exportNotes('text')" style="flex: 1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; background: white; cursor: pointer; font-size: 12px;">Export TXT</button>
-                    <button class="scratchpad-export-btn" onclick="window.scratchpad.exportNotes('json')" style="flex: 1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; background: white; cursor: pointer; font-size: 12px;">Export JSON</button>
-                </div>
             `;
             
             document.body.appendChild(panel);
@@ -473,25 +468,81 @@ class ScratchpadManager {
         div.className = `scratchpad-note ${note.note_type}`;
         div.setAttribute('data-note-id', note.id);
         
+        // Apply box styling to each note
+        div.style.cssText = `
+            background: white !important;
+            border: 1px solid #e0e0e0 !important;
+            border-radius: 8px !important;
+            margin-bottom: 16px !important;
+            padding: 16px !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+        `;
+        
         let anchorHtml = '';
         if (note.note_type === 'anchored' && note.anchor_data) {
             anchorHtml = `
-                <div class="scratchpad-anchor-text">
-                    📌 "${note.anchor_data.selection_text}"
+                <div class="scratchpad-anchor-text" style="
+                    border-left: 4px solid #1976d2 !important;
+                    padding-left: 12px !important;
+                    margin-bottom: 12px !important;
+                    font-style: italic !important;
+                    color: #666 !important;
+                    background: #f8f9fa !important;
+                    padding: 8px 12px !important;
+                    border-radius: 4px !important;
+                ">
+                    "${note.anchor_data.selection_text}"
                 </div>
             `;
         }
         
         div.innerHTML = `
-            <div class="scratchpad-note-header">
-                <span class="scratchpad-note-type">${note.note_type}</span>
-                <div class="scratchpad-note-actions">
-                    <button class="scratchpad-note-action" onclick="window.scratchpad.editNote(${note.id})" title="Edit">✏️</button>
-                    <button class="scratchpad-note-action" onclick="window.scratchpad.deleteNote(${note.id})" title="Delete">🗑️</button>
+            <div class="scratchpad-note-header" style="
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                margin-bottom: 12px !important;
+            ">
+                <span class="scratchpad-note-type" style="
+                    font-size: 12px !important;
+                    color: #666 !important;
+                    text-transform: uppercase !important;
+                    font-weight: 500 !important;
+                ">${note.note_type}</span>
+                <div class="scratchpad-note-actions" style="
+                    display: flex !important;
+                    gap: 4px !important;
+                ">
+                    <button class="scratchpad-note-action" onclick="window.scratchpad.editNote(${note.id})" title="Edit" style="
+                        background: none !important;
+                        border: none !important;
+                        font-size: 14px !important;
+                        cursor: pointer !important;
+                        padding: 4px !important;
+                        border-radius: 4px !important;
+                        opacity: 0.7 !important;
+                    ">✏️</button>
+                    <button class="scratchpad-note-action" onclick="window.scratchpad.deleteNote(${note.id})" title="Delete" style="
+                        background: none !important;
+                        border: none !important;
+                        font-size: 14px !important;
+                        cursor: pointer !important;
+                        padding: 4px !important;
+                        border-radius: 4px !important;
+                        opacity: 0.7 !important;
+                    ">🗑️</button>
                 </div>
             </div>
             ${anchorHtml}
-            <div class="scratchpad-note-content" data-note-id="${note.id}">
+            <div class="scratchpad-note-content" data-note-id="${note.id}" style="
+                min-height: 40px !important;
+                line-height: 1.5 !important;
+                color: #333 !important;
+                cursor: text !important;
+                padding: 8px !important;
+                border-radius: 4px !important;
+                border: 1px solid transparent !important;
+            ">
                 ${note.content || 'Click to add note...'}
             </div>
         `;
@@ -529,8 +580,16 @@ class ScratchpadManager {
             noteContent.contentEditable = true;
             noteContent.focus();
             
+            // Add editing styles
+            noteContent.style.border = '1px solid #1976d2';
+            noteContent.style.background = '#f8f9fa';
+            noteContent.style.outline = 'none';
+            
             const saveNote = () => {
                 noteContent.contentEditable = false;
+                // Reset styles
+                noteContent.style.border = '1px solid transparent';
+                noteContent.style.background = 'transparent';
                 this.saveNote(noteId, noteContent.textContent);
                 noteContent.removeEventListener('blur', saveNote);
                 noteContent.removeEventListener('keydown', handleKeydown);
@@ -542,6 +601,9 @@ class ScratchpadManager {
                 }
                 if (e.key === 'Escape') {
                     noteContent.contentEditable = false;
+                    // Reset styles
+                    noteContent.style.border = '1px solid transparent';
+                    noteContent.style.background = 'transparent';
                     this.loadNotes(); // Reload to discard changes
                     noteContent.removeEventListener('blur', saveNote);
                     noteContent.removeEventListener('keydown', handleKeydown);
@@ -676,31 +738,6 @@ class ScratchpadManager {
         }
     }
     
-    async exportNotes(format) {
-        if (!window.currentPaperId) return;
-        
-        try {
-            const response = await fetch(`/api/scratchpad/${window.currentPaperId}/export?format=${format}`);
-            const result = await response.json();
-            
-            if (result.success) {
-                // Download the content
-                const blob = new Blob([result.content], { 
-                    type: format === 'json' ? 'application/json' : 'text/plain' 
-                });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `scratchpad-${window.currentPaperId}.${format === 'markdown' ? 'md' : format}`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }
-        } catch (error) {
-            console.error('Failed to export notes:', error);
-        }
-    }
 }
 
 // Initialize scratchpad - called by PDF renderer when PDF is fully loaded
