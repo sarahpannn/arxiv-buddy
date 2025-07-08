@@ -179,3 +179,274 @@ button:disabled {
   caret-color:CanvasText;
   z-index:0;
 }
+
+/* Scratchpad Styles */
+.scratchpad-fab {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 56px;
+  height: 56px;
+  background: #1976d2;
+  border: none;
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(25, 118, 210, 0.4);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 24px;
+  transition: all 0.3s ease;
+  z-index: 1000;
+}
+
+.scratchpad-fab:hover {
+  background: #1565c0;
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(25, 118, 210, 0.6);
+}
+
+.scratchpad-fab.has-notes {
+  background: #ff9800;
+}
+
+.scratchpad-fab.has-notes:hover {
+  background: #f57c00;
+}
+
+.scratchpad-panel {
+  position: fixed;
+  top: 0;
+  right: -400px;
+  width: 400px;
+  height: 100vh;
+  background: white;
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+  transition: right 0.3s ease;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+}
+
+.scratchpad-panel.open {
+  right: 0;
+}
+
+.scratchpad-header {
+  padding: 20px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #f8f9fa;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.scratchpad-header h3 {
+  margin: 0;
+  color: #1976d2;
+  font-size: 1.2rem;
+}
+
+.scratchpad-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.scratchpad-close:hover {
+  background: #e0e0e0;
+}
+
+.scratchpad-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.scratchpad-note {
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: white;
+  position: relative;
+}
+
+.scratchpad-note.anchored {
+  border-left: 4px solid #4caf50;
+  background: #f8fff8;
+}
+
+.scratchpad-note.highlight {
+  border-left: 4px solid #ff9800;
+  background: #fff8f0;
+}
+
+.scratchpad-note-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.scratchpad-note-type {
+  font-size: 11px;
+  color: #666;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.scratchpad-note-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.scratchpad-note-action {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: #666;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.scratchpad-note-action:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.scratchpad-anchor-text {
+  font-size: 12px;
+  color: #4caf50;
+  font-style: italic;
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  background: #e8f5e8;
+  border-radius: 4px;
+}
+
+.scratchpad-note-content {
+  font-size: 14px;
+  line-height: 1.4;
+  color: #333;
+  white-space: pre-wrap;
+  min-height: 20px;
+}
+
+.scratchpad-note-content[contenteditable="true"] {
+  border: 1px solid #ccc;
+  padding: 8px;
+  border-radius: 4px;
+  background: white;
+  outline: none;
+}
+
+.scratchpad-note-content[contenteditable="true"]:focus {
+  border-color: #1976d2;
+}
+
+.scratchpad-add-note {
+  margin-top: 16px;
+  padding: 12px;
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  text-align: center;
+  cursor: pointer;
+  color: #666;
+  transition: all 0.2s;
+}
+
+.scratchpad-add-note:hover {
+  border-color: #1976d2;
+  color: #1976d2;
+  background: #f0f7ff;
+}
+
+.scratchpad-footer {
+  padding: 16px 20px;
+  border-top: 1px solid #e0e0e0;
+  background: #f8f9fa;
+  display: flex;
+  gap: 8px;
+}
+
+.scratchpad-export-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.scratchpad-export-btn:hover {
+  background: #f0f0f0;
+  border-color: #999;
+}
+
+/* Text selection highlights for anchoring */
+.text-selection-highlight {
+  background: rgba(255, 235, 59, 0.3);
+  position: relative;
+}
+
+.text-selection-highlight.has-note {
+  background: rgba(76, 175, 80, 0.3);
+  cursor: pointer;
+}
+
+.text-selection-highlight.has-note:hover {
+  background: rgba(76, 175, 80, 0.5);
+}
+
+/* Mini note preview popup */
+.note-preview-popup {
+  position: absolute;
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 12px;
+  max-width: 300px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1001;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.note-preview-popup::before {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 20px;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid white;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .scratchpad-panel {
+    width: 100vw;
+    right: -100vw;
+  }
+  
+  .scratchpad-fab {
+    bottom: 16px;
+    right: 16px;
+    width: 48px;
+    height: 48px;
+    font-size: 20px;
+  }
+}

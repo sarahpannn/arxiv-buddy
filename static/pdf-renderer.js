@@ -73,94 +73,79 @@ window.renderPDF = async function(pdfUrl) {
             const style = document.createElement('style');
             style.id = 'pdf-text-layer-styles';
             style.textContent = `
-                /* Reset text layer styles for PDF.js 4.3+ */
-                .textLayer {
-                    position: absolute;
-                    text-align: initial;
-                    left: 0;
-                    top: 0;
-                    right: 0;
-                    bottom: 0;
-                    overflow: hidden;
-                    opacity: 1;
-                    line-height: 1;
-                    text-size-adjust: none;
-                    forced-color-adjust: none;
-                    transform-origin: 0 0;
-                    z-index: 2;
-                    caret-color: auto;
-                }
-                
-                .textLayer :is(span, br) {
-                    color: transparent;
-                    position: absolute;
-                    white-space: pre;
-                    cursor: text;
-                    transform-origin: 0% 0%;
-                }
-                
-                /* Fix for selection visibility */
-                .textLayer span::selection {
-                    background: rgba(0, 0, 255, 0.3);
-                    color: transparent;
-                }
-                
-                .textLayer span::-moz-selection {
-                    background: rgba(0, 0, 255, 0.3);
-                    color: transparent;
-                }
-                
-                /* Ensure proper text selection */
-                .textLayer {
-                    user-select: text;
-                    -webkit-user-select: text;
-                    -moz-user-select: text;
-                    -ms-user-select: text;
-                }
-                
-                .textLayer .highlight {
-                    margin: -1px;
-                    padding: 1px;
-                    background-color: rgba(180, 0, 170, 0.2);
-                    border-radius: 4px;
-                }
-                
-                .textLayer .highlight.appended {
-                    position: initial;
-                }
-                
-                .textLayer .highlight.begin {
-                    border-radius: 4px 0 0 4px;
-                }
-                
-                .textLayer .highlight.end {
-                    border-radius: 0 4px 4px 0;
-                }
-                
-                .textLayer .highlight.middle {
-                    border-radius: 0;
-                }
-                
-                .textLayer .highlight.selected {
-                    background-color: rgba(0, 100, 0, 0.2);
-                }
-                
-                .textLayer .endOfContent {
-                    display: block;
-                    position: absolute;
-                    left: 0;
-                    top: 100%;
-                    right: 0;
-                    bottom: 0;
-                    z-index: -1;
-                    cursor: default;
-                    user-select: none;
-                }
-                
-                .textLayer .endOfContent.active {
-                    top: 0;
-                }
+            /* Updated text-layer rules for PDF.js ≥ 4.3 — keeps glyph metrics intact */
+            .textLayer{
+            position:absolute;
+            inset:0;                    /* shorthand for top/right/bottom/left:0 */
+            overflow:clip;              /* avoids scrollbars but doesn’t hide transforms */
+            opacity:1;
+            line-height:1;
+            text-size-adjust:none;
+            forced-color-adjust:none;
+            transform-origin:0 0;
+            caret-color:CanvasText;
+            z-index:2;                  /* 2 = above canvas, below any UI chrome */
+            }
+
+            /* When the viewer enters “highlighting” mode (e.g. during find) */
+            .textLayer.highlighting{
+            touch-action:none;
+            }
+
+            /* Every glyph is an absolutely-positioned span */
+            .textLayer span,
+            .textLayer br{
+            color:transparent;          /* canvas shows through */
+            position:absolute;
+            white-space:pre;
+            cursor:text;
+            transform-origin:0 0;
+            }
+
+            /* Chrome quirk: empty marked-content spans mustn’t stretch */
+            .textLayer span.markedContent{
+            top:0;
+            height:0;
+            }
+            .textLayer span[role="img"]{
+            user-select:none;
+            cursor:default;
+            }
+
+            /* ========== Selection & highlight visuals ========== */
+            .textLayer ::selection{
+            background:rgba(0,0,255,.25);
+            }
+            .textLayer br::selection{
+            background:transparent;     /* fixes blue bars in Chrome */
+            }
+
+            .textLayer .highlight{
+            margin:-1px;
+            padding:1px;
+            background:rgba(180,0,170,.25);
+            border-radius:4px;
+            }
+            .textLayer .highlight.appended{position:initial;}
+            .textLayer .highlight.begin  {border-radius:4px 0 0 4px;}
+            .textLayer .highlight.end    {border-radius:0 4px 4px 0;}
+            .textLayer .highlight.middle {border-radius:0;}
+            .textLayer .highlight.selected{
+            background:rgba(0,100,0,.25);
+            }
+
+            /* Sentinel added by TextLayerBuilder so the cursor can reach the end */
+            .textLayer .endOfContent{
+            display:block;
+            position:absolute;
+            inset:100% 0 0;             /* pushes it just below the page */
+            z-index:0;
+            cursor:default;
+            user-select:none;
+            }
+            .textLayer.selecting .endOfContent{top:0;}
             `;
+
             document.head.appendChild(style);
         }
 
@@ -307,6 +292,14 @@ window.renderPDF = async function(pdfUrl) {
             }
             
             console.log(`Rendered page ${pageNum}`);
+        }
+
+        // All pages rendered - initialize scratchpad
+        console.log('🎯 PDF: All pages rendered, initializing scratchpad');
+        if (window.initializeScratchpad) {
+            window.initializeScratchpad();
+        } else if (window.scratchpad) {
+            window.scratchpad.createScratchpadUI();
         }
 
     } catch (error) {
