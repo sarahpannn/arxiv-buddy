@@ -18,7 +18,15 @@ load_dotenv()
 print("=== MAIN.PY MODULE LOADED ===")
 
 # Import our modules
-from models import db, users, library, User, LibraryItem
+from models import (
+    db,
+    users,
+    library,
+    scratchpad_notes,
+    User,
+    LibraryItem,
+    ScratchpadNote,
+)
 from auth import google_client, Auth, login_page, logout, require_auth
 from library import library_page, add_paper_page, add_paper, remove_paper
 from source_manager import (
@@ -99,10 +107,8 @@ def get(session=None, code: str = None):
         print("=== HANDLING OAUTH CALLBACK ===")
         try:
             # Use retr_info to combine token exchange and user info retrieval
-            user_info = google_client.retr_info(
-                code, redirect_uri="https://wonderful-ruby-divides-86r.pla.sh/"
-            )
-            # user_info = google_client.retr_info(code, redirect_uri="http://localhost:5002/")  # type: ignore
+            # user_info = google_client.retr_info(code, redirect_uri="https://wonderful-ruby-divides-86r.pla.sh/")
+            user_info = google_client.retr_info(code, redirect_uri="http://localhost:5002/")  # type: ignore
 
             print(f"User info: {user_info}")
 
@@ -395,6 +401,25 @@ def load_paper_content(arxiv_url: str, session=None):
             ),
             Body(
                 Canvas(id="pdf-canvas"),
+                # Citation Modal
+                Div(
+                    Div(
+                        Div(
+                            H3("Citation Details", id="citation-modal-title"),
+                            Button(
+                                "×",
+                                class_="citation-modal-close",
+                                onclick="closeCitationModal()",
+                            ),
+                            class_="citation-modal-header",
+                        ),
+                        Div(id="citation-modal-content", class_="citation-modal-body"),
+                        class_="citation-modal-content",
+                    ),
+                    id="citation-modal",
+                    class_="citation-modal",
+                    onclick="closeCitationModal(event)",
+                ),
                 Script(
                     src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.mjs",
                     type="module",
@@ -413,15 +438,139 @@ def load_paper_content(arxiv_url: str, session=None):
                 Script(src="/static/reference-resolver.js", type="module"),
                 Script(src="/static/paper-preview.js", type="module"),
                 Script(src="/static/test-utilities.js", type="module"),
+                Script(src="/static/scratchpad.js"),
                 Script(src="/static/pdf-viewer.js", type="module"),
-                Link(rel="stylesheet", href="/static/context-menu.css"),
-                Script(src="/static/context-menu.js", type="module"),
                 Script(
                     f"""
+                    console.log('🚀 MAIN: Setting up global variables');
+                    
                     // Set global LaTeX data for the paper
                     window.latexData = {json.dumps(download_result.get('parsed_latex', None))};
                     window.paperStrategy = '{download_result['strategy']}';
                     window.currentPaperId = '{paper_id}';
+                    
+                    console.log('🚀 MAIN: Global variables set:', {{
+                        hasLatexData: !!window.latexData,
+                        strategy: window.paperStrategy,
+                        paperId: window.currentPaperId
+                    }});
+                    
+                    // Debug function to check scratchpad status
+                    window.debugScratchpad = function() {{
+                        console.log('=== SCRATCHPAD DEBUG ===');
+                        console.log('Scratchpad instance:', window.scratchpad);
+                        console.log('FAB element:', document.querySelector('.scratchpad-fab'));
+                        console.log('Panel element:', document.querySelector('.scratchpad-panel'));
+                        console.log('Current paper ID:', window.currentPaperId);
+                        console.log('=========================');
+                    }};
+                    
+                    // Manual function to force-create scratchpad
+                    window.forceScratchpad = function() {{
+                        console.log('🔧 FORCE: Creating scratchpad manually');
+                        if (!window.scratchpad) {{
+                            console.log('🔧 FORCE: No scratchpad instance, creating new one');
+                            initializeScratchpad();
+                        }} else {{
+                            console.log('🔧 FORCE: Scratchpad exists, recreating UI');
+                            window.scratchpad.createScratchpadUI();
+                        }}
+                    }};
+                    
+                    // Test function to open scratchpad panel manually
+                    window.testScratchpadPanel = function() {{
+                        console.log('🔧 TEST: Testing scratchpad panel opening');
+                        if (window.scratchpad) {{
+                            window.scratchpad.openPanel();
+                            console.log('✅ TEST: Scratchpad panel opening triggered');
+                        }} else {{
+                            console.log('❌ TEST: No scratchpad instance found');
+                        }}
+                    }};
+                    
+                    // Test function to create a simple working context menu
+                    window.testWorkingContextMenu = function() {{
+                        console.log('🔧 TEST: Creating simple working context menu');
+                        
+                        // Remove any existing test menu
+                        const existing = document.querySelector('#test-context-menu');
+                        if (existing) existing.remove();
+                        
+                        const menu = document.createElement('div');
+                        menu.id = 'test-context-menu';
+                        menu.style.cssText = `
+                            position: fixed !important;
+                            left: 300px !important;
+                            top: 200px !important;
+                            background: white !important;
+                            border: 2px solid red !important;
+                            border-radius: 8px !important;
+                            padding: 12px !important;
+                            z-index: 99999 !important;
+                            display: flex !important;
+                            gap: 8px !important;
+                        `;
+                        
+                        const btn1 = document.createElement('button');
+                        btn1.textContent = 'Test 1';
+                        btn1.style.cssText = 'padding: 8px; background: blue; color: white; border: none; cursor: pointer;';
+                        btn1.addEventListener('click', () => {{
+                            console.log('✅ TEST: Test button 1 clicked!');
+                            alert('Test button 1 works!');
+                        }});
+                        
+                        const btn2 = document.createElement('button');
+                        btn2.textContent = 'Test 2';
+                        btn2.style.cssText = 'padding: 8px; background: green; color: white; border: none; cursor: pointer;';
+                        btn2.addEventListener('click', () => {{
+                            console.log('✅ TEST: Test button 2 clicked!');
+                            window.scratchpad.openPanel();
+                        }});
+                        
+                        const btnClose = document.createElement('button');
+                        btnClose.textContent = 'Close';
+                        btnClose.style.cssText = 'padding: 8px; background: red; color: white; border: none; cursor: pointer;';
+                        btnClose.addEventListener('click', () => {{
+                            console.log('✅ TEST: Close button clicked!');
+                            menu.remove();
+                        }});
+                        
+                        menu.appendChild(btn1);
+                        menu.appendChild(btn2);
+                        menu.appendChild(btnClose);
+                        document.body.appendChild(menu);
+                        
+                        console.log('✅ TEST: Working context menu created');
+                    }};
+                    
+                    
+                    // Modal control functions
+                    window.showCitationModal = function() {{
+                        const modal = document.getElementById('citation-modal');
+                        if (modal) {{
+                            modal.classList.add('show');
+                        }}
+                    }};
+                    
+                    window.closeCitationModal = function(event) {{
+                        // Only close if clicking the backdrop or close button
+                        if (event && event.target !== document.getElementById('citation-modal') && 
+                            !event.target.classList.contains('citation-modal-close')) {{
+                            return;
+                        }}
+                        
+                        const modal = document.getElementById('citation-modal');
+                        if (modal) {{
+                            modal.classList.remove('show');
+                        }}
+                    }};
+                    
+                    // Close modal with ESC key
+                    document.addEventListener('keydown', function(e) {{
+                        if (e.key === 'Escape') {{
+                            closeCitationModal();
+                        }}
+                    }});
                     
                     // Debug the LaTeX data loading
                     console.log('🚀 LATEX DATA LOADED:', {{
@@ -597,9 +746,247 @@ def get_title_route(source: str, url: str):
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
+# Scratchpad API endpoints
+@rt("/api/scratchpad/test")
+def test_scratchpad_api():
+    """Test endpoint to verify scratchpad API is working"""
+    print("🚀 SCRATCHPAD API: Test endpoint called")
+    return {"success": True, "message": "Scratchpad API is working", "test": True}
+
+
+@rt("/api/scratchpad/{paper_id}", methods=["GET"])
+def get_scratchpad_notes(paper_id: str, session):
+    """Get all scratchpad notes for a paper"""
+    print(f"🚀 SCRATCHPAD API: GET /api/scratchpad/{paper_id}")
+    print(f"🚀 SCRATCHPAD API: Session: {session}")
+
+    user_id = session.get("user_id") if session else None
+    print(f"🚀 SCRATCHPAD API: User ID: {user_id}")
+
+    if not user_id:
+        print("❌ SCRATCHPAD API: No user_id - authentication required")
+        return {"success": False, "error": "Authentication required"}
+
+    try:
+        query = f"user_id = '{user_id}' AND paper_id = '{paper_id}' AND is_deleted = 0"
+        print(f"🚀 SCRATCHPAD API: Query: {query}")
+
+        notes = scratchpad_notes(where=query, order_by="position ASC")
+        notes_list = list(notes)
+        print(f"🚀 SCRATCHPAD API: Found {len(notes_list)} notes")
+
+        result = {
+            "success": True,
+            "notes": [
+                {
+                    "id": note.id,
+                    "content": note.content,
+                    "note_type": note.note_type,
+                    "anchor_data": (
+                        json.loads(note.anchor_data) if note.anchor_data else None
+                    ),
+                    "created_at": note.created_at,
+                    "updated_at": note.updated_at,
+                    "position": note.position,
+                }
+                for note in notes_list
+            ],
+        }
+        print(f"✅ SCRATCHPAD API: Returning result: {result}")
+        return result
+    except Exception as e:
+        print(f"❌ SCRATCHPAD API: Error: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@rt("/api/scratchpad", methods=["POST"])
+async def create_scratchpad_note(request):
+    """Create a new scratchpad note"""
+    session = request.session if hasattr(request, "session") else {}
+    user_id = session.get("user_id")
+    if not user_id:
+        return {"success": False, "error": "Authentication required"}
+
+    try:
+        data = await request.json()
+
+        # Get next position
+        existing_notes = scratchpad_notes(
+            where=f"user_id = '{user_id}' AND paper_id = '{data['paper_id']}' AND is_deleted = 0"
+        )
+        next_position = len(list(existing_notes))
+
+        note_id = scratchpad_notes.insert(
+            user_id=user_id,
+            paper_id=data["paper_id"],
+            content=data.get("content", ""),
+            note_type=data.get("note_type", "unanchored"),
+            anchor_data=(
+                json.dumps(data.get("anchor_data")) if data.get("anchor_data") else None
+            ),
+            created_at=datetime.now().isoformat(),
+            updated_at=datetime.now().isoformat(),
+            position=next_position,
+            is_deleted=False,
+        )
+
+        return {"success": True, "note_id": note_id}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@rt("/api/scratchpad/{note_id}", methods=["PUT"])
+async def update_scratchpad_note(note_id: int, request):
+    """Update a scratchpad note"""
+    session = request.session if hasattr(request, "session") else {}
+    user_id = session.get("user_id")
+    if not user_id:
+        return {"success": False, "error": "Authentication required"}
+
+    try:
+        data = await request.json()
+
+        # Verify ownership
+        notes = list(scratchpad_notes(where=f"id = {note_id}"))
+        if not notes:
+            return {"success": False, "error": "Note not found"}
+
+        note = notes[0]
+        if note.user_id != user_id:
+            return {"success": False, "error": "Access denied"}
+
+        # Update note
+        update_data = {"updated_at": datetime.now().isoformat()}
+
+        if "content" in data:
+            update_data["content"] = data["content"]
+        if "note_type" in data:
+            update_data["note_type"] = data["note_type"]
+        if "anchor_data" in data:
+            update_data["anchor_data"] = (
+                json.dumps(data["anchor_data"]) if data["anchor_data"] else None
+            )
+        if "position" in data:
+            update_data["position"] = data["position"]
+
+        scratchpad_notes.update(id=note_id, **update_data)
+
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@rt("/api/scratchpad/{note_id}", methods=["DELETE"])
+def delete_scratchpad_note(note_id: int, session):
+    """Delete a scratchpad note (soft delete)"""
+    print(f"🗑️ DELETE API: Called with note_id={note_id}, type={type(note_id)}")
+    print(f"🗑️ DELETE API: Session={session}")
+
+    user_id = session.get("user_id") if session else None
+    print(f"🗑️ DELETE API: User ID={user_id}")
+
+    if not user_id:
+        return {"success": False, "error": "Authentication required"}
+
+    try:
+        print(f"🗑️ DELETE API: Querying for note with id={note_id}")
+
+        # Verify ownership
+        notes = list(scratchpad_notes(where=f"id = {note_id}"))
+        print(f"🗑️ DELETE API: Found {len(notes)} notes")
+
+        if not notes:
+            return {"success": False, "error": "Note not found"}
+
+        note = notes[0]
+        print(f"🗑️ DELETE API: Note found, user_id={note.user_id}")
+
+        if note.user_id != user_id:
+            return {"success": False, "error": "Access denied"}
+
+        print(f"🗑️ DELETE API: Attempting to update note {note_id}")
+
+        # Soft delete
+        scratchpad_notes.update(
+            id=note_id, is_deleted=True, updated_at=datetime.now().isoformat()
+        )
+
+        print(f"✅ DELETE API: Note {note_id} marked as deleted")
+        return {"success": True}
+    except Exception as e:
+        print(f"❌ DELETE API: Error: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@rt("/api/scratchpad/{paper_id}/export", methods=["GET"])
+def export_scratchpad(paper_id: str, session, format: str = "markdown"):
+    """Export scratchpad notes in various formats"""
+    user_id = session.get("user_id") if session else None
+    if not user_id:
+        return {"success": False, "error": "Authentication required"}
+
+    try:
+        notes = scratchpad_notes(
+            where=f"user_id = '{user_id}' AND paper_id = '{paper_id}' AND is_deleted = 0",
+            order_by="position ASC",
+        )
+
+        if format == "markdown":
+            content = f"# Scratchpad Notes for Paper {paper_id}\n\n"
+            for note in notes:
+                content += f"## Note {note.position + 1}\n"
+                if note.note_type == "anchored" and note.anchor_data:
+                    anchor = json.loads(note.anchor_data)
+                    content += (
+                        f"**Anchored to:** \"{anchor.get('selection_text', '')}\"\n\n"
+                    )
+                content += f"{note.content}\n\n"
+                content += f"*Created: {note.created_at}*\n\n---\n\n"
+
+        elif format == "json":
+            content = json.dumps(
+                [
+                    {
+                        "id": note.id,
+                        "content": note.content,
+                        "note_type": note.note_type,
+                        "anchor_data": (
+                            json.loads(note.anchor_data) if note.anchor_data else None
+                        ),
+                        "created_at": note.created_at,
+                        "position": note.position,
+                    }
+                    for note in notes
+                ],
+                indent=2,
+            )
+
+        else:  # plain text
+            content = f"Scratchpad Notes for Paper {paper_id}\n" + "=" * 50 + "\n\n"
+            for note in notes:
+                content += f"Note {note.position + 1}:\n"
+                if note.note_type == "anchored" and note.anchor_data:
+                    anchor = json.loads(note.anchor_data)
+                    content += (
+                        f"Anchored to: \"{anchor.get('selection_text', '')}\"\n\n"
+                    )
+                content += f"{note.content}\n\n"
+                content += f"Created: {note.created_at}\n\n" + "-" * 30 + "\n\n"
+
+        return {"success": True, "content": content, "format": format}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 if __name__ == "__main__":
-    # serve(host="localhost", port=5002)
-    serve()
+    serve(host="localhost", port=5002)
+    # serve()
 
 
 def download_arxiv_pdf(arxiv_url):
