@@ -11,11 +11,32 @@ import os
 import json
 from datetime import datetime
 from dotenv import load_dotenv
+from supabase import create_client, Client
+from openai import OpenAI
 
 # Load environment variables
 load_dotenv()
 
 print("=== MAIN.PY MODULE LOADED ===")
+
+# Initialize Supabase client
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_KEY")
+openai_api_key = os.getenv("OPENAI_API_KEY")
+
+if supabase_url and supabase_key:
+    supabase: Client = create_client(supabase_url, supabase_key)
+    print("✅ Supabase client initialized")
+else:
+    supabase = None
+    print("⚠️ Supabase credentials not found")
+
+if openai_api_key:
+    openai_client = OpenAI(api_key=openai_api_key)
+    print("✅ OpenAI client initialized")
+else:
+    openai_client = None
+    print("⚠️ OpenAI API key not found")
 
 # Import our modules
 from models import (
@@ -756,7 +777,7 @@ def test_scratchpad_api():
 
 @rt("/api/scratchpad/{paper_id}", methods=["GET"])
 def get_scratchpad_notes(paper_id: str, session):
-    """Get all scratchpad notes for a paper"""
+    """Get all scratchpad notes for a paper with threaded replies"""
     print(f"🚀 SCRATCHPAD API: GET /api/scratchpad/{paper_id}")
     print(f"🚀 SCRATCHPAD API: Session: {session}")
 
@@ -771,28 +792,58 @@ def get_scratchpad_notes(paper_id: str, session):
         query = f"user_id = '{user_id}' AND paper_id = '{paper_id}' AND is_deleted = 0"
         print(f"🚀 SCRATCHPAD API: Query: {query}")
 
-        notes = scratchpad_notes(where=query, order_by="position ASC")
+        notes = scratchpad_notes(where=query, order_by="position ASC, created_at ASC")
         notes_list = list(notes)
         print(f"🚀 SCRATCHPAD API: Found {len(notes_list)} notes")
 
+        # organize notes hierarchically with replies
+        def format_note(note):
+            return {
+                "id": note.id,
+                "content": note.content,
+                "note_type": note.note_type,
+                "anchor_data": (
+                    json.loads(note.anchor_data) if note.anchor_data else None
+                ),
+                "created_at": note.created_at,
+                "updated_at": note.updated_at,
+                "position": note.position,
+                "parent_note_id": getattr(note, "parent_note_id", None),
+                "reply_type": getattr(note, "reply_type", None),
+                "ai_metadata": (
+                    json.loads(note.ai_metadata)
+                    if getattr(note, "ai_metadata", None)
+                    else None
+                ),
+                "replies": [],
+            }
+
+        # separate root notes and replies
+        root_notes = []
+        replies_by_parent = {}
+
+        for note in notes_list:
+            formatted_note = format_note(note)
+            parent_id = getattr(note, "parent_note_id", None)
+
+            if parent_id is None:
+                root_notes.append(formatted_note)
+            else:
+                if parent_id not in replies_by_parent:
+                    replies_by_parent[parent_id] = []
+                replies_by_parent[parent_id].append(formatted_note)
+
+        # attach replies to their parent notes
+        for note in root_notes:
+            note_id = note["id"]
+            if note_id in replies_by_parent:
+                note["replies"] = replies_by_parent[note_id]
+
         result = {
             "success": True,
-            "notes": [
-                {
-                    "id": note.id,
-                    "content": note.content,
-                    "note_type": note.note_type,
-                    "anchor_data": (
-                        json.loads(note.anchor_data) if note.anchor_data else None
-                    ),
-                    "created_at": note.created_at,
-                    "updated_at": note.updated_at,
-                    "position": note.position,
-                }
-                for note in notes_list
-            ],
+            "notes": root_notes,
         }
-        print(f"✅ SCRATCHPAD API: Returning result: {result}")
+        print(f"✅ SCRATCHPAD API: Returning result with {len(root_notes)} root notes")
         return result
     except Exception as e:
         print(f"❌ SCRATCHPAD API: Error: {e}")
@@ -804,7 +855,7 @@ def get_scratchpad_notes(paper_id: str, session):
 
 @rt("/api/scratchpad", methods=["POST"])
 async def create_scratchpad_note(request):
-    """Create a new scratchpad note"""
+    """Create a new scratchpad note or reply"""
     session = request.session if hasattr(request, "session") else {}
     user_id = session.get("user_id")
     if not user_id:
@@ -813,11 +864,18 @@ async def create_scratchpad_note(request):
     try:
         data = await request.json()
 
-        # Get next position
-        existing_notes = scratchpad_notes(
-            where=f"user_id = '{user_id}' AND paper_id = '{data['paper_id']}' AND is_deleted = 0"
-        )
-        next_position = len(list(existing_notes))
+        # check if this is a reply
+        parent_note_id = data.get("parent_note_id")
+        reply_type = data.get("reply_type")
+
+        # get next position (only for root notes)
+        if not parent_note_id:
+            existing_notes = scratchpad_notes(
+                where=f"user_id = '{user_id}' AND paper_id = '{data['paper_id']}' AND is_deleted = 0 AND parent_note_id IS NULL"
+            )
+            next_position = len(list(existing_notes))
+        else:
+            next_position = 0  # replies don't need position ordering
 
         note_id = scratchpad_notes.insert(
             user_id=user_id,
@@ -831,6 +889,11 @@ async def create_scratchpad_note(request):
             updated_at=datetime.now().isoformat(),
             position=next_position,
             is_deleted=False,
+            parent_note_id=parent_note_id,
+            reply_type=reply_type,
+            ai_metadata=(
+                json.dumps(data.get("ai_metadata")) if data.get("ai_metadata") else None
+            ),
         )
 
         return {"success": True, "note_id": note_id}
@@ -981,6 +1044,212 @@ def export_scratchpad(paper_id: str, session, format: str = "markdown"):
 
         return {"success": True, "content": content, "format": format}
     except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+# RAG search and AI reply functionality
+async def search_vectorized_sources(query: str, limit: int = 5):
+    """Search through vectorized sources using RAG"""
+    if not supabase:
+        print("⚠️ Supabase client not available")
+        return []
+
+    try:
+        print(f"🔍 Searching vectorized sources for: {query}")
+
+        # Use ilike search for content matching (textSearch doesn't exist in supabase-py)
+        try:
+            response = (
+                supabase.table("vectorized_sources")
+                .select("*")
+                .ilike("content", f"%{query}%")
+                .limit(limit)
+                .execute()
+            )
+
+            if response.data:
+                print(f"✅ Found {len(response.data)} results using content search")
+                return response.data
+        except Exception as e:
+            print(f"⚠️ content search failed: {e}")
+
+        # Try searching in source_name as backup
+        try:
+            response = (
+                supabase.table("vectorized_sources")
+                .select("*")
+                .ilike("source_name", f"%{query}%")
+                .limit(limit)
+                .execute()
+            )
+
+            if response.data:
+                print(f"✅ Found {len(response.data)} results using source_name search")
+                return response.data
+        except Exception as e:
+            print(f"⚠️ source_name search failed: {e}")
+
+        # If no specific matches, return a few random recent entries for context
+        try:
+            response = (
+                supabase.table("vectorized_sources")
+                .select("*")
+                .order("created_at", desc=True)
+                .limit(3)
+                .execute()
+            )
+
+            if response.data:
+                print(f"✅ Returning {len(response.data)} recent entries as fallback")
+                return response.data
+        except Exception as e:
+            print(f"⚠️ fallback search failed: {e}")
+
+        print("❌ No results found")
+        return []
+
+    except Exception as e:
+        print(f"❌ RAG search error: {e}")
+        return []
+
+
+async def generate_ai_reply(note_content: str, search_results: list) -> str:
+    """Generate AI reply based on note content and search results"""
+    if not openai_client:
+        return "ai reply functionality requires openai api key"
+
+    try:
+        # prepare context from search results
+        if search_results:
+            context = "Here are some relevant sources from the database:\n\n"
+            for i, result in enumerate(search_results[:3], 1):
+                source_name = result.get("source_name", "Unknown Source")
+                content = result.get("content", "")[:400]
+                context += f"{i}. **{source_name}**\n   {content}...\n\n"
+        else:
+            context = "No specific matching sources were found in the database for this query."
+
+        prompt = f"""
+        You are an AI assistant helping a researcher with their notes. A user has written the following note:
+
+        "{note_content}"
+
+        {context}
+
+        Please provide a helpful, concise response that addresses the user's note. If relevant sources were found, reference them specifically. If no relevant sources were found, provide thoughtful guidance based on the note content itself. Keep your response under 200 words and be practical and specific.
+        """
+
+        response = openai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=300,
+            temperature=0.7,
+        )
+
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"❌ AI reply generation error: {e}")
+        return f"ai reply generation failed: {str(e)}"
+
+
+@rt("/api/scratchpad/{note_id}/ai-reply", methods=["POST"])
+async def create_ai_reply(note_id: int, request):
+    """Generate an AI reply for a specific note"""
+    session = request.session if hasattr(request, "session") else {}
+    user_id = session.get("user_id")
+    if not user_id:
+        return {"success": False, "error": "Authentication required"}
+
+    try:
+        # get the original note
+        notes = list(scratchpad_notes(where=f"id = {note_id}"))
+        if not notes:
+            return {"success": False, "error": "Note not found"}
+
+        note = notes[0]
+        if note.user_id != user_id:
+            return {"success": False, "error": "Access denied"}
+
+        # perform RAG search
+        search_results = await search_vectorized_sources(note.content, limit=3)
+
+        # generate AI reply
+        ai_reply_content = await generate_ai_reply(note.content, search_results)
+
+        # create the AI reply note
+        ai_metadata = {
+            "model": "gpt-3.5-turbo",
+            "search_results_count": len(search_results),
+            "sources": [
+                result.get("source_name", "Unknown") for result in search_results[:3]
+            ],
+        }
+
+        reply_id = scratchpad_notes.insert(
+            user_id=user_id,
+            paper_id=note.paper_id,
+            content=ai_reply_content,
+            note_type="ai_reply",
+            anchor_data=None,
+            created_at=datetime.now().isoformat(),
+            updated_at=datetime.now().isoformat(),
+            position=0,
+            is_deleted=False,
+            parent_note_id=note_id,
+            reply_type="ai",
+            ai_metadata=json.dumps(ai_metadata),
+        )
+
+        return {
+            "success": True,
+            "reply_id": reply_id,
+            "content": ai_reply_content,
+            "ai_metadata": ai_metadata,
+        }
+    except Exception as e:
+        print(f"❌ AI reply error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@rt("/api/scratchpad/{note_id}/reply", methods=["POST"])
+async def create_user_reply(note_id: int, request):
+    """Create a user reply to a specific note"""
+    session = request.session if hasattr(request, "session") else {}
+    user_id = session.get("user_id")
+    if not user_id:
+        return {"success": False, "error": "Authentication required"}
+
+    try:
+        data = await request.json()
+
+        # get the original note
+        notes = list(scratchpad_notes(where=f"id = {note_id}"))
+        if not notes:
+            return {"success": False, "error": "Note not found"}
+
+        note = notes[0]
+        if note.user_id != user_id:
+            return {"success": False, "error": "Access denied"}
+
+        # create the user reply
+        reply_id = scratchpad_notes.insert(
+            user_id=user_id,
+            paper_id=note.paper_id,
+            content=data.get("content", ""),
+            note_type="user_reply",
+            anchor_data=None,
+            created_at=datetime.now().isoformat(),
+            updated_at=datetime.now().isoformat(),
+            position=0,
+            is_deleted=False,
+            parent_note_id=note_id,
+            reply_type="user",
+            ai_metadata=None,
+        )
+
+        return {"success": True, "reply_id": reply_id}
+    except Exception as e:
+        print(f"❌ User reply error: {e}")
         return {"success": False, "error": str(e)}
 
 

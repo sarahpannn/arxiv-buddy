@@ -463,17 +463,23 @@ class ScratchpadManager {
         });
     }
     
-    createNoteElement(note) {
+    createNoteElement(note, isReply = false) {
         const div = document.createElement('div');
-        div.className = `scratchpad-note ${note.note_type}`;
+        div.className = `scratchpad-note ${note.note_type} ${isReply ? 'reply' : ''}`;
         div.setAttribute('data-note-id', note.id);
         
-        // Apply box styling to each note
+        // Apply box styling to each note with reply indentation
+        const marginLeft = isReply ? '20px' : '0';
+        const backgroundColor = isReply && note.reply_type === 'ai' ? '#f0f8ff' : 'white';
+        const borderLeft = isReply && note.reply_type === 'ai' ? '4px solid #4CAF50' : '1px solid #e0e0e0';
+        
         div.style.cssText = `
-            background: white !important;
+            background: ${backgroundColor} !important;
             border: 1px solid #e0e0e0 !important;
+            border-left: ${borderLeft} !important;
             border-radius: 8px !important;
             margin-bottom: 16px !important;
+            margin-left: ${marginLeft} !important;
             padding: 16px !important;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
         `;
@@ -496,6 +502,58 @@ class ScratchpadManager {
             `;
         }
         
+        // AI reply indicator
+        let aiIndicator = '';
+        if (note.reply_type === 'ai') {
+            const sources = note.ai_metadata?.sources || [];
+            const sourcesText = sources.length > 0 ? `Sources: ${sources.join(', ')}` : 'AI Generated';
+            aiIndicator = `
+                <div class="ai-indicator" style="
+                    background: #e8f5e8 !important;
+                    border: 1px solid #4CAF50 !important;
+                    border-radius: 4px !important;
+                    padding: 6px 10px !important;
+                    margin-bottom: 10px !important;
+                    font-size: 11px !important;
+                    color: #2e7d32 !important;
+                ">
+                    🤖 ${sourcesText}
+                </div>
+            `;
+        }
+        
+        // Reply controls for non-reply notes
+        let replyControls = '';
+        if (!isReply) {
+            replyControls = `
+                <div class="scratchpad-reply-controls" style="
+                    display: flex !important;
+                    gap: 8px !important;
+                    margin-top: 12px !important;
+                    padding-top: 12px !important;
+                ">
+                    <button class="scratchpad-reply-btn" onclick="window.scratchpad.showReplyBox(${note.id})" title="Reply" style="
+                        background: #f5f5f5 !important;
+                        border: 1px solid #ddd !important;
+                        font-size: 12px !important;
+                        padding: 4px 8px !important;
+                        border-radius: 4px !important;
+                        cursor: pointer !important;
+                        color: #666 !important;
+                    ">💬 Reply</button>
+                    <button class="scratchpad-ai-btn" onclick="window.scratchpad.createAiReply(${note.id})" title="Ask AI" style="
+                        background: #e8f5e8 !important;
+                        border: 1px solid #4CAF50 !important;
+                        font-size: 12px !important;
+                        padding: 4px 8px !important;
+                        border-radius: 4px !important;
+                        cursor: pointer !important;
+                        color: #2e7d32 !important;
+                    ">🤖 Ask AI</button>
+                </div>
+            `;
+        }
+        
         div.innerHTML = `
             <div class="scratchpad-note-header" style="
                 display: flex !important;
@@ -508,7 +566,7 @@ class ScratchpadManager {
                     color: #666 !important;
                     text-transform: uppercase !important;
                     font-weight: 500 !important;
-                ">${note.note_type}</span>
+                ">${note.note_type}${note.reply_type ? ` (${note.reply_type})` : ''}</span>
                 <div class="scratchpad-note-actions" style="
                     display: flex !important;
                     gap: 4px !important;
@@ -534,6 +592,7 @@ class ScratchpadManager {
                 </div>
             </div>
             ${anchorHtml}
+            ${aiIndicator}
             <div class="scratchpad-note-content" data-note-id="${note.id}" style="
                 min-height: 40px !important;
                 line-height: 1.5 !important;
@@ -545,7 +604,25 @@ class ScratchpadManager {
             ">
                 ${note.content || 'Click to add note...'}
             </div>
+            ${replyControls}
         `;
+        
+        // Add replies if they exist
+        if (note.replies && note.replies.length > 0) {
+            const repliesContainer = document.createElement('div');
+            repliesContainer.className = 'scratchpad-replies';
+            repliesContainer.style.cssText = `
+                margin-top: 16px !important;
+                padding-top: 12px !important;
+            `;
+            
+            note.replies.forEach(reply => {
+                const replyElement = this.createNoteElement(reply, true);
+                repliesContainer.appendChild(replyElement);
+            });
+            
+            div.appendChild(repliesContainer);
+        }
         
         return div;
     }
@@ -735,6 +812,144 @@ class ScratchpadManager {
         } else {
             this.fab.classList.remove('has-notes');
             this.fab.title = 'Scratchpad';
+        }
+    }
+    
+    showReplyBox(noteId) {
+        // Check if reply box already exists
+        const existingBox = document.querySelector(`[data-reply-to="${noteId}"]`);
+        if (existingBox) {
+            existingBox.remove();
+            return;
+        }
+        
+        // Create reply input box
+        const replyBox = document.createElement('div');
+        replyBox.className = 'scratchpad-reply-box';
+        replyBox.setAttribute('data-reply-to', noteId);
+        
+        replyBox.style.cssText = `
+            margin: 10px 0 10px 20px !important;
+            padding: 12px !important;
+            border: 2px solid #1976d2 !important;
+            border-radius: 8px !important;
+            background: #f8f9fa !important;
+        `;
+        
+        replyBox.innerHTML = `
+            <div style="margin-bottom: 8px; font-size: 12px; color: #666;">replying to note...</div>
+            <textarea placeholder="write your reply..." style="
+                width: 100% !important;
+                min-height: 60px !important;
+                border: 1px solid #ddd !important;
+                border-radius: 4px !important;
+                padding: 8px !important;
+                font-family: inherit !important;
+                resize: vertical !important;
+                box-sizing: border-box !important;
+            "></textarea>
+            <div style="margin-top: 8px; text-align: right;">
+                <button onclick="window.scratchpad.cancelReply(${noteId})" style="
+                    background: #f5f5f5 !important;
+                    border: 1px solid #ddd !important;
+                    padding: 4px 12px !important;
+                    border-radius: 4px !important;
+                    cursor: pointer !important;
+                    margin-right: 8px !important;
+                    font-size: 12px !important;
+                ">cancel</button>
+                <button onclick="window.scratchpad.submitReply(${noteId})" style="
+                    background: #1976d2 !important;
+                    color: white !important;
+                    border: 1px solid #1976d2 !important;
+                    padding: 4px 12px !important;
+                    border-radius: 4px !important;
+                    cursor: pointer !important;
+                    font-size: 12px !important;
+                ">reply</button>
+            </div>
+        `;
+        
+        // Insert after the note
+        const noteElement = document.querySelector(`[data-note-id="${noteId}"]`);
+        if (noteElement) {
+            noteElement.insertAdjacentElement('afterend', replyBox);
+            const textarea = replyBox.querySelector('textarea');
+            textarea.focus();
+        }
+    }
+    
+    cancelReply(noteId) {
+        const replyBox = document.querySelector(`[data-reply-to="${noteId}"]`);
+        if (replyBox) {
+            replyBox.remove();
+        }
+    }
+    
+    async submitReply(noteId) {
+        const replyBox = document.querySelector(`[data-reply-to="${noteId}"]`);
+        if (!replyBox) return;
+        
+        const textarea = replyBox.querySelector('textarea');
+        const content = textarea.value.trim();
+        
+        if (!content) {
+            alert('please enter a reply');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/scratchpad/${noteId}/reply`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ content })
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                replyBox.remove();
+                await this.loadNotes();
+            } else {
+                alert('failed to create reply: ' + result.error);
+            }
+        } catch (error) {
+            console.error('failed to create reply:', error);
+            alert('failed to create reply');
+        }
+    }
+    
+    async createAiReply(noteId) {
+        const aiBtn = document.querySelector(`[data-note-id="${noteId}"] .scratchpad-ai-btn`);
+        if (aiBtn) {
+            aiBtn.textContent = '🤖 generating...';
+            aiBtn.disabled = true;
+        }
+        
+        try {
+            const response = await fetch(`/api/scratchpad/${noteId}/ai-reply`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({})
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                await this.loadNotes();
+            } else {
+                alert('failed to generate ai reply: ' + result.error);
+            }
+        } catch (error) {
+            console.error('failed to generate ai reply:', error);
+            alert('failed to generate ai reply');
+        } finally {
+            if (aiBtn) {
+                aiBtn.textContent = '🤖 Ask AI';
+                aiBtn.disabled = false;
+            }
         }
     }
     
