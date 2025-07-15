@@ -3,7 +3,7 @@ import requests
 from xml.etree import ElementTree as ET
 
 from embeddings import get_embedding, cosine_similarity
-from scrapers import SCRAPER_REGISTRY
+from meta.scrapers import SCRAPER_REGISTRY
 
 
 def _fetch_arxiv_meta(paper_id: str) -> Dict:
