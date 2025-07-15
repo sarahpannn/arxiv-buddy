@@ -1,6 +1,7 @@
 import os
 import argparse
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 import google.auth
@@ -20,7 +21,9 @@ logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 # --- environment loading ---
 def load_environment():
     """load environment variables from .env file."""
-    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
+    load_dotenv(
+        dotenv_path=os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+    )
     api_key = os.getenv("YOUTUBE_API_KEY")
     if not api_key:
         logging.warning(
@@ -81,6 +84,9 @@ class YouTubeDataRetriever:
             next_page_token = res.get("nextPageToken")
             if next_page_token is None:
                 break
+
+            # add delay to avoid rate limiting
+            time.sleep(0.3)
 
         logging.info(f"found {len(videos)} videos in channel '{channel_title}'.")
         return channel_title, videos
@@ -160,10 +166,26 @@ class TranscriptFetcher:
     """fetches and processes video transcripts."""
 
     def get_transcript(self, video_id):
-        """get transcript for a single video."""
+        """get transcript for a single video with timestamps."""
         try:
+            # add delay to avoid rate limiting
+            time.sleep(0.3)
             transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-            return " ".join([d["text"] for d in transcript_list])
+
+            # format transcript with timestamps
+            formatted_segments = []
+            for segment in transcript_list:
+                start_time = segment["start"]
+                text = segment["text"]
+
+                # convert seconds to mm:ss format
+                minutes = int(start_time // 60)
+                seconds = int(start_time % 60)
+                timestamp = f"{minutes:02d}:{seconds:02d}"
+
+                formatted_segments.append(f"[{timestamp}] {text}")
+
+            return " ".join(formatted_segments)
         except Exception as e:
             logging.warning(f"could not fetch transcript for video {video_id}: {e}")
             return None
@@ -245,7 +267,7 @@ def index_channel(channel_id, query, k, alpha):
     logging.info(f"fetching transcripts and indexing {len(top_videos)} videos...")
 
     successful_uploads = []
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=2) as executor:
         with tqdm(total=len(top_videos), desc="indexing videos") as pbar:
             futures = [
                 executor.submit(
