@@ -1,0 +1,8 @@
+google-api-python-client
+youtube-transcript-api
+openai
+supabase
+scikit-learn
+numpy
+python-dotenv
+tqdm 
