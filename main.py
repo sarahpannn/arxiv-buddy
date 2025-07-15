@@ -59,7 +59,7 @@ from source_manager import (
 # New imports for context feature
 from recommender import get_recommendations
 from context_manager import get_context_manager
-from scrapers import get_scraper
+from meta.scrapers import get_scraper
 
 # Create static directory if it doesn't exist
 os.makedirs("static", exist_ok=True)
