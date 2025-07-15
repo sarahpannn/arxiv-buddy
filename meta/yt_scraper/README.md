@@ -72,7 +72,7 @@ This script indexes video transcripts from a YouTube channel based on a query. I
 Run the indexer from the root of the project directory:
 
 ```bash
-python -m yt_scraper.indexer --channel_id "UCYO_jab_esuFRV4b17AJCLA" --query "attention mechanism" --k 5
+python -m yt_scraper/indexer --channel_id "UCYO_jab_esuFRV4b17AJCLA" --query "attention mechanism" --k 5
 ```
 
 ### Arguments

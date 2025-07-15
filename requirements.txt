@@ -11,3 +11,5 @@ beautifulsoup4
 tqdm
 sentence-transformers
 numpy
+supabase
+openai
