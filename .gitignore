@@ -4,6 +4,8 @@ node_modules/
 
 __pycache__/
 
+__init__.py
+
 *.pdf
 pdf.js
 
@@ -126,6 +128,7 @@ data/
 
 # Environment variables
 .env
+.env.example
 .env.local
 .env.development.local
 .env.test.local

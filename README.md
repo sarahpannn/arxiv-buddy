@@ -15,6 +15,14 @@ A rich, web-based PDF viewer for academic papers.
 - Python 3.7+
 - pip
 
+Create a `.env` file in the root directory with the following content:
+
+```bash
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+GOOGLE_CLIENT_ID=your_google_client_id_here
+GOOGLE_CLIENT_SECRET=your_google_client_secret_here
+```
+
 ### Installation
 
 ```bash
