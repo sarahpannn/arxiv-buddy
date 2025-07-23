@@ -1,8 +1,9 @@
 from config import supabase, claude_client, claude_msg
+from embeddings import get_embedding
 
 
-async def search_vectorized_sources(query: str, limit: int = 5):
-    """Search through vectorized sources using RAG"""
+async def search_vectorized_sources(query: str, limit: int = 5, match_threshold: float = -0.7):
+    """Search through vectorized sources using vector similarity"""
     if not supabase:
         print("⚠️ Supabase client not available")
         return []
@@ -10,63 +11,40 @@ async def search_vectorized_sources(query: str, limit: int = 5):
     try:
         print(f"🔍 Searching vectorized sources for: {query}")
 
-        # Use ilike search for content matching (textSearch doesn't exist in supabase-py)
+        # Generate query embedding
+        query_embedding, _ = get_embedding(query)
+        if not query_embedding:
+            print("❌ Failed to generate query embedding")
+            return []
+
+        # Perform vector search using your RPC function
         try:
-            response = (
-                supabase.table("vectorized_sources")
-                .select("*")
-                .ilike("content", f"%{query}%")
-                .limit(limit)
-                .execute()
-            )
+            result = supabase.rpc(
+                'match_documents',
+                {
+                    'query_embedding': query_embedding,
+                    'match_threshold': match_threshold,
+                    'match_count': limit
+                }
+            ).execute()
 
-            if response.data:
-                print(f"✅ Found {len(response.data)} results using content search")
-                return response.data
+            if result.data:
+                print(f"✅ Found {len(result.data)} results using vector search")
+                return result.data
+            else:
+                print("ℹ️ No vector search results found")
+                return []
+
         except Exception as e:
-            print(f"⚠️ content search failed: {e}")
-
-        # Try searching in source_name as backup
-        try:
-            response = (
-                supabase.table("vectorized_sources")
-                .select("*")
-                .ilike("source_name", f"%{query}%")
-                .limit(limit)
-                .execute()
-            )
-
-            if response.data:
-                print(f"✅ Found {len(response.data)} results using source_name search")
-                return response.data
-        except Exception as e:
-            print(f"⚠️ source_name search failed: {e}")
-
-        # If no specific matches, return a few random recent entries for context
-        try:
-            response = (
-                supabase.table("vectorized_sources")
-                .select("*")
-                .order("created_at", desc=True)
-                .limit(3)
-                .execute()
-            )
-
-            if response.data:
-                print(f"✅ Returning {len(response.data)} recent entries as fallback")
-                return response.data
-        except Exception as e:
-            print(f"⚠️ fallback search failed: {e}")
-
-        print("❌ No results found")
-        return []
+            print(f"❌ Vector search error: {e}")
+            return []
 
     except Exception as e:
         print(f"❌ RAG search error: {e}")
         return []
 
 
-async def generate_ai_reply(note_content: str, pdf_url: str = None) -> str:
+async def generate_ai_reply(note_content: str, pdf_url: str = None, scratchpad_context: str = None) -> str:
     """Generate AI reply based on note content and PDF context"""
     if not claude_client:
         return "ai reply functionality requires anthropic api key"
@@ -78,11 +56,20 @@ async def generate_ai_reply(note_content: str, pdf_url: str = None) -> str:
         if pdf_url:
             content_list.append({"type": "document", "source": {"type": "url", "url": pdf_url}})
         
-        prompt = f"""You are an AI assistant helping a researcher understand a paper. A user has written the following note:
+        # Build context-aware prompt
+        context_section = ""
+        if scratchpad_context:
+            context_section = f"""Here are the user's other notes on this paper:
+
+{scratchpad_context}
+
+"""
+
+        prompt = f"""You are an AI assistant helping a researcher understand a paper. {context_section}The user has written the following new note:
 
 "{note_content}"
 
-Provide a helpful response that is thoughtful but concise, over anything. Aim for around 50 words."""
+Provide a helpful response that is thoughtful but concise. Only reference other notes if they directly relate to the current note. Aim for around 50 words."""
 
         content_list.append({"type": "text", "text": prompt})
         

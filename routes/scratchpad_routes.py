@@ -5,6 +5,35 @@ from models import scratchpad_notes
 from services.ai_service import search_vectorized_sources, generate_ai_reply
 
 
+def get_scratchpad_context(user_id: str, paper_id: str, exclude_note_id: int = None) -> str:
+    """Get formatted scratchpad context for AI, excluding AI replies and optionally a specific note"""
+    try:
+        where_clause = f"user_id = '{user_id}' AND paper_id = '{paper_id}' AND is_deleted = 0 AND note_type != 'ai_reply'"
+        if exclude_note_id:
+            where_clause += f" AND id != {exclude_note_id}"
+            
+        notes = scratchpad_notes(
+            where=where_clause,
+            order_by="position ASC, created_at ASC"
+        )
+        
+        context = ""
+        for note in notes:
+            context += f"• "
+            if note.note_type == "anchored" and note.anchor_data:
+                try:
+                    anchor = json.loads(note.anchor_data)
+                    context += f"[Anchored to: \"{anchor.get('selection_text', '')[:50]}...\"] "
+                except:
+                    pass
+            context += f"{note.content}\n"
+        
+        return context.strip() if context else None
+    except Exception as e:
+        print(f"❌ Error getting scratchpad context: {e}")
+        return None
+
+
 def register_scratchpad_routes(rt):
     """Register scratchpad-related routes"""
     
@@ -171,22 +200,14 @@ def register_scratchpad_routes(rt):
     @rt("/api/scratchpad/{note_id}", methods=["DELETE"])
     def delete_scratchpad_note(note_id: int, session):
         """Delete a scratchpad note (soft delete)"""
-        print(f"🗑️ DELETE API: Called with note_id={note_id}, type={type(note_id)}")
-        print(f"🗑️ DELETE API: Session={session}")
-
         user_id = session.get("user_id") if session else None
-        print(f"🗑️ DELETE API: User ID={user_id}")
 
         if not user_id:
             return {"success": False, "error": "Authentication required"}
 
         try:
-            print(f"🗑️ DELETE API: Querying for note with id={note_id}")
-
             # Verify ownership
             notes = list(scratchpad_notes(where=f"id = {note_id}"))
-            print(f"🗑️ DELETE API: Found {len(notes)} notes")
-
             if not notes:
                 return {"success": False, "error": "Note not found"}
 
@@ -294,13 +315,19 @@ def register_scratchpad_routes(rt):
             # Use direct arXiv HTTPS URL for PDF context
             pdf_url = f"https://arxiv.org/pdf/{note.paper_id}"
 
+            # Get scratchpad context using helper function
+            scratchpad_context = get_scratchpad_context(user_id, note.paper_id, note_id)
+
+            # Handle anchored notes
+            anchor = ""
             if note.note_type == "anchored" and note.anchor_data:
-                anchor =  f"Anchored to: \"{json.loads(note.anchor_data).get('selection_text', '')}\"\n\n"
+                anchor = f"Anchored to: \"{json.loads(note.anchor_data).get('selection_text', '')}\"\n\n"
                 
             # generate AI reply with PDF context from arXiv
             ai_reply_content = await generate_ai_reply(
                 note_content=anchor + note.content if anchor else note.content,
-                pdf_url=pdf_url
+                pdf_url=pdf_url,
+                scratchpad_context=scratchpad_context
             )
 
             # create the AI reply note
