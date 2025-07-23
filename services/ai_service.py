@@ -66,36 +66,32 @@ async def search_vectorized_sources(query: str, limit: int = 5):
         return []
 
 
-async def generate_ai_reply(note_content: str, search_results: list) -> str:
-    """Generate AI reply based on note content and search results"""
+async def generate_ai_reply(note_content: str, pdf_url: str = None) -> str:
+    """Generate AI reply based on note content and PDF context"""
     if not claude_client:
         return "ai reply functionality requires anthropic api key"
 
     try:
-        # prepare context from search results
-        if search_results:
-            context = "Here are some relevant sources from the database:\n\n"
-            for i, result in enumerate(search_results[:3], 1):
-                source_name = result.get("source_name", "Unknown Source")
-                content = result.get("content", "")[:400]
-                context += f"{i}. **{source_name}**\n   {content}...\n\n"
-        else:
-            context = "No specific matching sources were found in the database for this query."
+        # Build message content with text and optional PDF
+        content_list = []
 
-        prompt = f"""
-        You are an AI assistant helping a researcher with their notes. A user has written the following note:
+        if pdf_url:
+            content_list.append({"type": "document", "source": {"type": "url", "url": pdf_url}})
+        
+        prompt = f"""You are an AI assistant helping a researcher understand a paper. A user has written the following note:
 
-        "{note_content}"
+"{note_content}"
 
-        {context}
+Provide a helpful response that is thoughtful but concise, over anything. Aim for around 50 words."""
 
-        Please provide a helpful, concise response that addresses the user's note. If relevant sources were found, reference them specifically. If no relevant sources were found, provide thoughtful guidance based on the note content itself. Keep your response under 200 words and be practical and specific.
-        """
-
-        message = claude_msg("user", prompt)
+        content_list.append({"type": "text", "text": prompt})
+        
+        # Add PDF if available
+        
+        message = claude_msg("user", content_list)
         response = claude_client.messages.create(
             model="claude-3-5-sonnet-20241022",
-            max_tokens=300,
+            max_tokens=350,
             messages=[message]
         )
         

@@ -11,29 +11,20 @@ def register_scratchpad_routes(rt):
     @rt("/api/scratchpad/test")
     def test_scratchpad_api():
         """Test endpoint to verify scratchpad API is working"""
-        print("🚀 SCRATCHPAD API: Test endpoint called")
         return {"success": True, "message": "Scratchpad API is working", "test": True}
 
     @rt("/api/scratchpad/{paper_id}", methods=["GET"])
     def get_scratchpad_notes(paper_id: str, session):
         """Get all scratchpad notes for a paper with threaded replies"""
-        print(f"🚀 SCRATCHPAD API: GET /api/scratchpad/{paper_id}")
-        print(f"🚀 SCRATCHPAD API: Session: {session}")
 
         user_id = session.get("user_id") if session else None
-        print(f"🚀 SCRATCHPAD API: User ID: {user_id}")
 
-        if not user_id:
-            print("❌ SCRATCHPAD API: No user_id - authentication required")
-            return {"success": False, "error": "Authentication required"}
+        if not user_id: return {"success": False, "error": "Authentication required"}
 
         try:
             query = f"user_id = '{user_id}' AND paper_id = '{paper_id}' AND is_deleted = 0"
-            print(f"🚀 SCRATCHPAD API: Query: {query}")
-
             notes = scratchpad_notes(where=query, order_by="position ASC, created_at ASC")
             notes_list = list(notes)
-            print(f"🚀 SCRATCHPAD API: Found {len(notes_list)} notes")
 
             # organize notes hierarchically with replies
             def format_note(note):
@@ -300,16 +291,23 @@ def register_scratchpad_routes(rt):
             # perform RAG search
             search_results = await search_vectorized_sources(note.content, limit=3)
 
-            # generate AI reply
-            ai_reply_content = await generate_ai_reply(note.content, search_results)
+            # Use direct arXiv HTTPS URL for PDF context
+            pdf_url = f"https://arxiv.org/pdf/{note.paper_id}"
+
+            if note.note_type == "anchored" and note.anchor_data:
+                anchor =  f"Anchored to: \"{json.loads(note.anchor_data).get('selection_text', '')}\"\n\n"
+                
+            # generate AI reply with PDF context from arXiv
+            ai_reply_content = await generate_ai_reply(
+                note_content=anchor + note.content if anchor else note.content,
+                pdf_url=pdf_url
+            )
 
             # create the AI reply note
             ai_metadata = {
-                "model": "gpt-3.5-turbo",
-                "search_results_count": len(search_results),
-                "sources": [
-                    result.get("source_name", "Unknown") for result in search_results[:3]
-                ],
+                "model": "claude-3-5-sonnet-20241022",
+                "pdf_context": True,
+                "pdf_url": pdf_url,
             }
 
             reply_id = scratchpad_notes.insert(
