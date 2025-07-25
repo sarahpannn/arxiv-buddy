@@ -17,6 +17,21 @@ if users not in db.t:
         pk="id",
     )
 
+# WebAuthn credentials table
+webauthncredentials = db.t.webauthncredentials
+if webauthncredentials not in db.t:
+    webauthncredentials.create(
+        dict(
+            id=str,  # Unique ID for this credential
+            uid=str,  # User ID (references users.id)
+            credential_id=str,  # Base64-encoded credential ID
+            public_key=str,  # Base64-encoded public key
+            counter=int,  # Counter for passkey usage
+            created_at=int,  # Timestamp when this credential was created
+        ),
+        pk="id",
+    )
+
 # Library table (arXiv IDs for each user)
 library = db.t.library
 if library not in db.t:
@@ -70,7 +85,22 @@ try:
 except:
     pass  # Column already exists
 
+# Magic link auth tokens table
+magic_auth_tokens = db.t.magic_auth_tokens
+if magic_auth_tokens not in db.t:
+    magic_auth_tokens.create(
+        dict(
+            auth_id=str,  # The magic link token
+            email=str,  # User's email
+            created_at=int,  # Timestamp when created
+            expires_at=int,  # Expiration timestamp
+            used=bool,  # Whether the token has been used
+        ),
+        pk="auth_id",
+    )
+
 # Dataclasses for easy access
 User = users.dataclass()
 LibraryItem = library.dataclass()
 ScratchpadNote = scratchpad_notes.dataclass()
+MagicAuthToken = magic_auth_tokens.dataclass()
