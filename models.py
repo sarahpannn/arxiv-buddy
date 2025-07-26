@@ -69,28 +69,26 @@ if scratchpad_notes not in db.t:
         pk="id",
     )
 
-# Add columns to existing table if they don't exist
 try:
     db.execute("ALTER TABLE scratchpad_notes ADD COLUMN parent_note_id INTEGER")
 except:
-    pass  # Column already exists
+    pass 
 
 try:
     db.execute("ALTER TABLE scratchpad_notes ADD COLUMN reply_type TEXT")
 except:
-    pass  # Column already exists
+    pass 
 
 try:
     db.execute("ALTER TABLE scratchpad_notes ADD COLUMN ai_metadata TEXT")
 except:
-    pass  # Column already exists
+    pass
 
-# Magic link auth tokens table
 magic_auth_tokens = db.t.magic_auth_tokens
 if magic_auth_tokens not in db.t:
     magic_auth_tokens.create(
         dict(
-            auth_id=str,  # The magic link token
+            auth_id=str,  
             email=str,  # User's email
             created_at=int,  # Timestamp when created
             expires_at=int,  # Expiration timestamp

@@ -26,17 +26,3 @@ def send_email(to_email, from_email, subject="Test Email", body="Test message", 
     auth_id = os.urandom(16).hex()  # Generate a random auth ID
 
     return auth_id
-
-
-# auth_ids = {}
-
-# def login():
-#   if device_enrolled():
-#     if passkey_success(): return True
-#   # device not enrolled or passkey failed
-#   email = get_email_address() # this needs to be written by them
-#   auth_id = send_auth_email(email)
-
-# def email_cb(auth_id:str):
-#   if auth_id not in auth_ids: return False
-#   return True

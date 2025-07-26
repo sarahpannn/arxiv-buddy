@@ -79,6 +79,12 @@ def login_page():
             H1("Welcome to Arxiv Buddy"),
             P("Sign in with your Google account to access your personal arXiv library."),
             Div(
+                Div(
+                A("Sign in with Google", 
+                  href=oauth_link,
+                  style="display: inline-block; padding: 16px 32px; background: #4285f4; color: white; text-decoration: none; border-radius: 8px; font-size: 1.1rem; font-weight: 500; box-shadow: 0 2px 8px rgba(66,133,244,0.2);"),
+                style="margin: 30px 0; text-align: center;"
+            ),
                 Button("Sign in with Passkey", 
                        id="passkey-signin-btn",
                        onclick="signInWithPasskey()",
@@ -87,14 +93,7 @@ def login_page():
                 style="margin: 30px 0; text-align: center;"
             ),
             Div(
-                A("Sign in with Google", 
-                  href=oauth_link,
-                  style="display: inline-block; padding: 16px 32px; background: #4285f4; color: white; text-decoration: none; border-radius: 8px; font-size: 1.1rem; font-weight: 500; box-shadow: 0 2px 8px rgba(66,133,244,0.2);"),
-                style="margin: 30px 0; text-align: center;"
-            ),
-            
-            Div(
-                P("Or register with your email:", 
+                P("Or acess via a link sent to your email:", 
                   style="color: #666; margin-bottom: 1rem; font-size: 1rem;"),
                 Form(
                     Input(
@@ -105,7 +104,7 @@ def login_page():
                         style="width: 100%; max-width: 400px; padding: 16px 18px; margin-bottom: 18px; font-size: 1.1rem; border-radius: 8px; border: 1.5px solid #ccc; background: #fafbfc;",
                     ),
                     Button(
-                        "Create Account",
+                        "Send Magic Link",
                         type="submit",
                         style="padding: 14px 32px; font-size: 1.1rem; border-radius: 8px; background: #10b981; color: white; border: none; font-weight: 500; cursor: pointer; box-shadow: 0 2px 8px rgba(16,185,129,0.08);",
                     ),

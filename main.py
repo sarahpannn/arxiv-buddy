@@ -32,10 +32,10 @@ app.add_middleware(SessionMiddleware, secret_key=session_secret)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS,  # or ["*"] for anything (dev only!)
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],  # GET, POST, PUT, etc.
-    allow_headers=["*"],  # Authorization, Content-Type, …
+    allow_methods=["*"],
+    allow_headers=["*"], 
 )
 
 # Mount static files

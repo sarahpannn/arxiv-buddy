@@ -268,8 +268,7 @@ def download_paper_content(paper_id: str, source_manager: SourceManager = None) 
             
         # Always try to get PDF for display (whether source worked or not)
         try:
-            from main import download_arxiv_pdf  # Import to avoid circular dependency
-            pdf_path = download_arxiv_pdf(f"https://arxiv.org/abs/{clean_id}")
+            pdf_path = _download_arxiv_pdf_internal(clean_id)
             result['pdf_path'] = pdf_path
         except Exception as pdf_error:
             result['errors'].append(f"PDF download failed: {pdf_error}")
@@ -281,8 +280,7 @@ def download_paper_content(paper_id: str, source_manager: SourceManager = None) 
         # Ultimate fallback to PDF-only
         if strategy == "source":
             try:
-                from main import download_arxiv_pdf
-                pdf_path = download_arxiv_pdf(f"https://arxiv.org/abs/{clean_id}")
+                pdf_path = _download_arxiv_pdf_internal(clean_id)
                 result['pdf_path'] = pdf_path
                 result['strategy'] = "pdf_fallback"
                 result['success'] = True
@@ -291,6 +289,21 @@ def download_paper_content(paper_id: str, source_manager: SourceManager = None) 
                 result['errors'].append(f"PDF fallback failed: {fallback_error}")
     
     return result
+
+
+def _download_arxiv_pdf_internal(paper_id: str) -> str:
+    """Internal PDF download function to avoid circular imports"""
+    pdf_url = f"https://arxiv.org/pdf/{paper_id}.pdf"
+    
+    response = requests.get(pdf_url)
+    response.raise_for_status()
+    
+    # Save to static directory so it can be served
+    pdf_path = f"static/{paper_id}.pdf"
+    with open(pdf_path, "wb") as f:
+        f.write(response.content)
+    
+    return paper_id
 
 
 # Convenience functions for external use
