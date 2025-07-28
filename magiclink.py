@@ -23,6 +23,4 @@ def send_email(to_email, from_email, subject="Test Email", body="Test message", 
         server.login(username, password)
         server.send_message(msg)
     
-    auth_id = os.urandom(16).hex()  # Generate a random auth ID
-
-    return auth_id
+    return

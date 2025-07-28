@@ -129,7 +129,6 @@ def login_page():
                     signinBtn.textContent = 'Signing in...';
                     statusDiv.innerHTML = '<div style="color: #3b82f6; font-size: 0.875rem;">🔐 Starting passkey authentication...</div>';
                     
-                    // Step 1: Get authentication options
                     const beginResponse = await fetch('/passkey/auth/begin');
                     if (!beginResponse.ok) throw new Error('Failed to start passkey authentication');
                     
@@ -138,12 +137,10 @@ def login_page():
                     // Convert challenge from base64url to Uint8Array
                     options.challenge = Uint8Array.from(atob(options.challenge.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
                     
-                    // Step 2: Get credential from authenticator
                     const credential = await navigator.credentials.get({
                         publicKey: options
                     });
                     
-                    // Step 3: Send assertion to server
                     const completeResponse = await fetch('/passkey/auth/complete', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -165,7 +162,6 @@ def login_page():
                         statusDiv.innerHTML = '<div style="color: #10b981; font-size: 0.875rem;">✅ Signed in successfully!</div>';
                         setTimeout(() => window.location.href = result.redirect || '/library', 1000);
                     } else {
-                        // Check if it's a "user not found" case that should redirect to magic link
                         if (completeResponse.status === 404 && result.redirect) {
                             statusDiv.innerHTML = '<div style="color: #f59e0b; font-size: 0.875rem;">⚠️ Passkey not found. Redirecting to registration...</div>';
                             setTimeout(() => window.location.href = result.redirect, 1500);

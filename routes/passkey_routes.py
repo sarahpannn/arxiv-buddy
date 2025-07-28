@@ -62,7 +62,6 @@ def register_passkey_routes(rt):
                         setupBtn.textContent = 'Setting up...';
                         statusDiv.innerHTML = '<div style="color: #3b82f6; font-size: 0.875rem;">🔐 Starting passkey setup...</div>';
                         
-                        // Get registration options
                         const beginResponse = await fetch('/passkey/register/begin');
                         if (!beginResponse.ok) throw new Error('Failed to start passkey setup');
                         
