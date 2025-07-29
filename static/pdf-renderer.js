@@ -6,15 +6,12 @@ window.pdfCanvases = window.pdfCanvases || [];
 
 // Function to render PDF with given URL
 window.renderPDF = async function(pdfUrl) {
-    console.log('PDF URL:', pdfUrl);
-    
     try {
         // Get the PDF document
         const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
         
         // Get total number of pages
         const numPages = pdf.numPages;
-        console.log('Total pages:', numPages);
         
         // Clear existing link overlays and canvas data before loading new PDF
         if (window.clearLinkOverlays) {
@@ -25,6 +22,49 @@ window.renderPDF = async function(pdfUrl) {
         // Get the container and clear existing content
         const container = document.body;
         container.innerHTML = '';
+        
+        // Add back button
+        const backButton = document.createElement('button');
+        backButton.id = 'back-button';
+        backButton.innerHTML = '← Back';
+        backButton.onclick = function() {
+            if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                window.location.href = '/';
+            }
+        };
+        backButton.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 9999;
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 20px;
+            font-size: 14px;
+            cursor: pointer;
+            font-weight: 500;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background 0.2s, transform 0.2s;
+        `;
+        
+        // Add hover effect
+        backButton.addEventListener('mouseenter', function() {
+            this.style.background = '#5a6268';
+            this.style.boxShadow = '0 4px 12px rgba(108, 117, 125, 0.3)';
+            this.style.transform = 'translateY(-1px)';
+        });
+        
+        backButton.addEventListener('mouseleave', function() {
+            this.style.background = '#6c757d';
+            this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+            this.style.transform = 'translateY(0)';
+        });
+        
+        container.appendChild(backButton);
         
         // Create main layout container
         const mainLayout = document.createElement('div');
@@ -252,14 +292,6 @@ window.renderPDF = async function(pdfUrl) {
             // Render the text layer
             await textLayer.render();
             
-            // Debug: Check what PDF.js actually rendered
-            console.log(`Page ${pageNum} text layer rendered. First few spans:`, 
-                Array.from(textLayerDiv.querySelectorAll('span')).slice(0, 3).map(span => ({
-                    text: span.textContent,
-                    fontSize: window.getComputedStyle(span).fontSize,
-                    transform: window.getComputedStyle(span).transform
-                }))
-            );
 
             // Store canvas data for responsive resizing
             const canvasData = {
@@ -279,7 +311,6 @@ window.renderPDF = async function(pdfUrl) {
 
             // Get PDF annotations (links, etc.) for this page
             const annotations = await page.getAnnotations();
-            console.log(`Page ${pageNum} annotations:`, annotations);
 
             // Process annotations and create clickable overlays
             if (window.createLinkOverlays) {
@@ -291,11 +322,9 @@ window.renderPDF = async function(pdfUrl) {
                 addPatternBasedCitationDetection(textLayerDiv, pdf);
             }
             
-            console.log(`Rendered page ${pageNum}`);
         }
 
         // All pages rendered - initialize scratchpad
-        console.log('🎯 PDF: All pages rendered, initializing scratchpad');
         if (window.initializeScratchpad) {
             window.initializeScratchpad();
         } else if (window.scratchpad) {
@@ -303,7 +332,6 @@ window.renderPDF = async function(pdfUrl) {
         }
 
     } catch (error) {
-        console.error('Error rendering PDF:', error);
     }
 };
 

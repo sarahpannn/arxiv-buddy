@@ -78,8 +78,6 @@ def load_paper_content(arxiv_url: str, session=None):
         )
 
     return Div(
-        # Add debug info
-        Script("""console.log('PDF loading response received');"""),
         # Library status area
         Div(
             library_status,
@@ -144,106 +142,10 @@ def load_paper_content(arxiv_url: str, session=None):
                 Script(src="/static/pdf-viewer.js", type="module"),
                 Script(
                     f"""
-                    console.log('🚀 MAIN: Setting up global variables');
-                    
                     // Set global LaTeX data for the paper
                     window.latexData = {json.dumps(download_result.get('parsed_latex', None))};
                     window.paperStrategy = '{download_result['strategy']}';
                     window.currentPaperId = '{paper_id}';
-                    
-                    console.log('🚀 MAIN: Global variables set:', {{
-                        hasLatexData: !!window.latexData,
-                        strategy: window.paperStrategy,
-                        paperId: window.currentPaperId
-                    }});
-                    
-                    // Debug function to check scratchpad status
-                    window.debugScratchpad = function() {{
-                        console.log('=== SCRATCHPAD DEBUG ===');
-                        console.log('Scratchpad instance:', window.scratchpad);
-                        console.log('FAB element:', document.querySelector('.scratchpad-fab'));
-                        console.log('Panel element:', document.querySelector('.scratchpad-panel'));
-                        console.log('Current paper ID:', window.currentPaperId);
-                        console.log('=========================');
-                    }};
-                    
-                    // Manual function to force-create scratchpad
-                    window.forceScratchpad = function() {{
-                        console.log('🔧 FORCE: Creating scratchpad manually');
-                        if (!window.scratchpad) {{
-                            console.log('🔧 FORCE: No scratchpad instance, creating new one');
-                            initializeScratchpad();
-                        }} else {{
-                            console.log('🔧 FORCE: Scratchpad exists, recreating UI');
-                            window.scratchpad.createScratchpadUI();
-                        }}
-                    }};
-                    
-                    // Test function to open scratchpad panel manually
-                    window.testScratchpadPanel = function() {{
-                        console.log('🔧 TEST: Testing scratchpad panel opening');
-                        if (window.scratchpad) {{
-                            window.scratchpad.openPanel();
-                            console.log('✅ TEST: Scratchpad panel opening triggered');
-                        }} else {{
-                            console.log('❌ TEST: No scratchpad instance found');
-                        }}
-                    }};
-                    
-                    // Test function to create a simple working context menu
-                    window.testWorkingContextMenu = function() {{
-                        console.log('🔧 TEST: Creating simple working context menu');
-                        
-                        // Remove any existing test menu
-                        const existing = document.querySelector('#test-context-menu');
-                        if (existing) existing.remove();
-                        
-                        const menu = document.createElement('div');
-                        menu.id = 'test-context-menu';
-                        menu.style.cssText = `
-                            position: fixed !important;
-                            left: 300px !important;
-                            top: 200px !important;
-                            background: white !important;
-                            border: 2px solid red !important;
-                            border-radius: 8px !important;
-                            padding: 12px !important;
-                            z-index: 99999 !important;
-                            display: flex !important;
-                            gap: 8px !important;
-                        `;
-                        
-                        const btn1 = document.createElement('button');
-                        btn1.textContent = 'Test 1';
-                        btn1.style.cssText = 'padding: 8px; background: blue; color: white; border: none; cursor: pointer;';
-                        btn1.addEventListener('click', () => {{
-                            console.log('✅ TEST: Test button 1 clicked!');
-                            alert('Test button 1 works!');
-                        }});
-                        
-                        const btn2 = document.createElement('button');
-                        btn2.textContent = 'Test 2';
-                        btn2.style.cssText = 'padding: 8px; background: green; color: white; border: none; cursor: pointer;';
-                        btn2.addEventListener('click', () => {{
-                            console.log('✅ TEST: Test button 2 clicked!');
-                            window.scratchpad.openPanel();
-                        }});
-                        
-                        const btnClose = document.createElement('button');
-                        btnClose.textContent = 'Close';
-                        btnClose.style.cssText = 'padding: 8px; background: red; color: white; border: none; cursor: pointer;';
-                        btnClose.addEventListener('click', () => {{
-                            console.log('✅ TEST: Close button clicked!');
-                            menu.remove();
-                        }});
-                        
-                        menu.appendChild(btn1);
-                        menu.appendChild(btn2);
-                        menu.appendChild(btnClose);
-                        document.body.appendChild(menu);
-                        
-                        console.log('✅ TEST: Working context menu created');
-                    }};
                     
                     
                     // Modal control functions
@@ -274,26 +176,10 @@ def load_paper_content(arxiv_url: str, session=None):
                         }}
                     }});
                     
-                    // Debug the LaTeX data loading
-                    console.log('🚀 LATEX DATA LOADED:', {{
-                        hasData: !!window.latexData,
-                        strategy: window.paperStrategy,
-                        paperId: window.currentPaperId,
-                        citationCount: window.latexData ? Object.keys(window.latexData.citation_mapping || {{}}).length : 0,
-                        figureCount: window.latexData ? Object.keys(window.latexData.figures || {{}}).length : 0
-                    }});
-                    
                     // Wait for the page to load, then call renderPDF
                     window.addEventListener('load', function() {{
-                        console.log('🚀 PAGE LOADED - LaTeX data status:', {{
-                            hasData: !!window.latexData,
-                            strategy: window.paperStrategy
-                        }});
-                        
                         if (window.renderPDF) {{
                             renderPDF('/static/{paper_id}.pdf');
-                        }} else {{
-                            console.error('renderPDF function not available');
                         }}
                     }});
 
