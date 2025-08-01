@@ -469,6 +469,7 @@ button:disabled {
   border-top: 8px solid white;
 }
 
+
 /* Responsive design */
 @media (max-width: 768px) {
   .scratchpad-panel {
@@ -483,4 +484,5 @@ button:disabled {
     height: 48px;
     font-size: 20px;
   }
+  
 }

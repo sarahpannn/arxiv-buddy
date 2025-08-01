@@ -1,6 +1,27 @@
 // Paper preview and enhancement functionality
 
 // Function to display reference information in the right pane
+// Helper function to preserve scratchpad button when updating right pane
+window.updateRightPaneContent = function(newContent) {
+    const rightPane = document.getElementById('info-pane');
+    if (!rightPane) return;
+    
+    // Check if scratchpad toggle button exists
+    const scratchpadToggle = rightPane.querySelector('.scratchpad-toggle');
+    const scratchpadIntegrated = rightPane.querySelector('.scratchpad-integrated');
+    
+    // Update the content
+    rightPane.innerHTML = newContent;
+    
+    // Re-append scratchpad elements if they existed
+    if (scratchpadToggle) {
+        rightPane.appendChild(scratchpadToggle);
+    }
+    if (scratchpadIntegrated) {
+        rightPane.appendChild(scratchpadIntegrated);
+    }
+}
+
 window.displayReferenceInfo = function(title, content, description) {
     
     const rightPane = document.getElementById('info-pane');
@@ -11,8 +32,8 @@ window.displayReferenceInfo = function(title, content, description) {
             return;
         }
         
-        // Show loading state first
-        rightPane.innerHTML = `
+        // Show loading state first using helper function
+        window.updateRightPaneContent(`
             <h3>${title}</h3>
             <div id="paper-preview" style="margin-top: 10px;">
                 <div style="display: flex; align-items: center; padding: 10px; background: #e3f2fd; border-radius: 5px;">
@@ -29,7 +50,7 @@ window.displayReferenceInfo = function(title, content, description) {
             <p style="color: #666; font-style: italic; margin-top: 15px;">${description}</p>
             <hr style="margin: 20px 0;">
             <small style="color: #999;">Click on other citations to see their references here.</small>
-        `;
+        `);
         
         // Parse and enhance the reference
         enhanceReferenceWithPreview(content);
@@ -40,8 +61,8 @@ window.displayReferenceInfo = function(title, content, description) {
 window.displayReferenceInfoFromUrl = async function(url) {
     const rightPane = document.getElementById('info-pane');
     if (rightPane) {
-        // Show loading state
-        rightPane.innerHTML = `
+        // Show loading state using helper function
+        window.updateRightPaneContent(`
             <h3>External Citation</h3>
             <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 10px 0;">
                 <strong>Link URL:</strong><br>
@@ -58,7 +79,7 @@ window.displayReferenceInfoFromUrl = async function(url) {
             <p style="color: #666; font-style: italic; margin-top: 15px;">Extracting paper information from the linked URL.</p>
             <hr style="margin: 20px 0;">
             <small style="color: #999;">Click on other citations to see their references here.</small>
-        `;
+        `);
         
         // Extract paper info from URL and enhance
         await enhanceReferenceFromUrl(url);
@@ -497,7 +518,7 @@ function displayEnhancedReferenceInfo(title, content, description) {
         const ref = latexReference.reference;
         const citations = latexReference.citations;
         
-        rightPane.innerHTML = `
+        window.updateRightPaneContent(`
             <h3>${title}</h3>
             
             ${generateLatexReferencePreview(ref, latexReference.key)}
@@ -515,7 +536,7 @@ function displayEnhancedReferenceInfo(title, content, description) {
             <p style="color: #666; font-style: italic; margin-top: 15px;">${description} Enhanced with LaTeX source data.</p>
             <hr style="margin: 20px 0;">
             <small style="color: #999;">Click on other citations to see their references here.</small>
-        `;
+        `);
     } else {
         showLatexCitationBrowser(title, content, description);
     }
@@ -660,7 +681,7 @@ function showLatexCitationBrowser(title, content, description) {
     const totalCitations = Object.keys(window.latexData.citation_mapping || {}).length;
     const totalFigures = Object.keys(window.latexData.figures || {}).length;
     
-    rightPane.innerHTML = `
+    window.updateRightPaneContent(`
         <h3>${title}</h3>
         
         <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f8f9fa; margin: 10px 0;">
@@ -682,5 +703,5 @@ function showLatexCitationBrowser(title, content, description) {
         <p style="color: #666; font-style: italic; margin-top: 15px;">${description}</p>
         <hr style="margin: 20px 0;">
         <small style="color: #999;">LaTeX-enhanced citation system active. Click citations for instant lookup.</small>
-    `;
+    `);
 }

@@ -81,6 +81,7 @@ window.renderPDF = async function(pdfUrl) {
         leftPane.style.backgroundColor = '#f5f5f5';
         leftPane.style.borderRight = '2px solid #ddd';
         leftPane.style.padding = '0 8px 0 0';
+        leftPane.style.position = 'relative';
         
         // Create right pane for future content
         const rightPane = document.createElement('div');
@@ -91,9 +92,11 @@ window.renderPDF = async function(pdfUrl) {
         rightPane.style.backgroundColor = '#fff';
         rightPane.style.display = 'block';
         rightPane.style.padding = '20px';
-        rightPane.innerHTML = `<div style="max-width: 90%; margin: 0 auto; text-align: center; font-family: 'Inter', 'Roboto', 'Segoe UI', 'Helvetica Neue', Arial, 'Liberation Sans', sans-serif; word-break: break-word;">
-            <h3 style='font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; letter-spacing: -1px; color: #23272f;'>What are we reading today?</h3>
-            <p style='color: #666; font-size: 1.1rem; margin-top: 0;'>Click on in-page links to see details here...</p>
+        rightPane.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; height: 100%; text-align: center; font-family: 'Inter', 'Roboto', 'Segoe UI', 'Helvetica Neue', Arial, 'Liberation Sans', sans-serif;">
+            <div style="max-width: 90%;">
+                <h3 style='font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; letter-spacing: -1px; color: #23272f;'>What are we reading today?</h3>
+                <p style='color: #666; font-size: 1.1rem; margin-top: 0;'>Click on in-page links to see details here...</p>
+            </div>
         </div>`;
         
         // Create PDF title
@@ -102,7 +105,7 @@ window.renderPDF = async function(pdfUrl) {
         title.style.textAlign = 'center';
         title.style.margin = '30px 0 20px 0';
         leftPane.appendChild(title);
-        
+
         // Add panes to main layout
         mainLayout.appendChild(leftPane);
         mainLayout.appendChild(rightPane);
@@ -325,6 +328,7 @@ window.renderPDF = async function(pdfUrl) {
         }
 
         // All pages rendered - initialize scratchpad
+        
         if (window.initializeScratchpad) {
             window.initializeScratchpad();
         } else if (window.scratchpad) {
@@ -418,3 +422,4 @@ if (!window.pdfResizeListenerAdded) {
     });
     window.pdfResizeListenerAdded = true;
 }
+

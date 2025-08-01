@@ -1,8 +1,9 @@
-import asyncio
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
-from config import supabase, claude_client, claude_msg
+from config import supabase, get_claude_msg
 from embeddings import get_embedding
+from claudette import Chat
+from msglm import mk_msg
 
 # Simple in-memory cache for search results
 _search_cache: Dict[str, Dict[str, Any]] = {}
@@ -36,7 +37,7 @@ def _clean_cache():
         _search_cache = dict(sorted_items[-MAX_CACHE_SIZE:])
 
 
-async def search_vectorized_sources(
+def search_vectorized_sources(
     query: str,
     limit: int = 5,
     match_threshold: float = -0.7,
@@ -79,12 +80,12 @@ async def search_vectorized_sources(
         query_embedding, token_count = get_embedding(query)
         if not query_embedding:
             print("[ERROR] failed to generate query embedding")
-            return await _fallback_keyword_search(query, limit)
+            return _fallback_keyword_search(query, limit)
 
         print(f"[INFO] generated embedding with {token_count} tokens")
 
         # Try pgvector approximate nearest neighbor search with timeout
-        vector_results = await _try_vector_search_with_timeout(
+        vector_results = _try_vector_search_with_timeout(
             query_embedding, limit, match_threshold, use_approximate, timeout_seconds
         )
 
@@ -98,45 +99,40 @@ async def search_vectorized_sources(
 
         # Fallback to keyword search if vector search failed
         print("[INFO] vector search failed, falling back to keyword search")
-        return await _fallback_keyword_search(query, limit)
+        return _fallback_keyword_search(query, limit)
 
     except Exception as e:
         print(f"[ERROR] search error: {e}")
-        return await _fallback_keyword_search(query, limit)
+        return _fallback_keyword_search(query, limit)
 
 
-async def _try_vector_search_with_timeout(
+def _try_vector_search_with_timeout(
     query_embedding: List[float],
     limit: int,
     match_threshold: float,
     use_approximate: bool,
-    timeout_seconds: int,
+    timeout_seconds: int,  # Kept for API compatibility even though not used
 ) -> Optional[List[Dict[str, Any]]]:
-    """Try vector search with timeout handling"""
+    """Try vector search with error handling"""
     try:
-        # Use asyncio.wait_for for timeout handling
         if use_approximate:
             # Use pgvector's native operators for approximate search
             # This assumes vectorized_sources has an embedding column of type vector
-            search_coro = _pgvector_approximate_search(
+            result = _pgvector_approximate_search(
                 query_embedding, limit, match_threshold
             )
         else:
             # Fall back to exact search (your original RPC)
-            search_coro = _exact_vector_search(query_embedding, limit, match_threshold)
+            result = _exact_vector_search(query_embedding, limit, match_threshold)
 
-        result = await asyncio.wait_for(search_coro, timeout=timeout_seconds)
         return result
 
-    except asyncio.TimeoutError:
-        print(f"[ERROR] vector search timed out after {timeout_seconds} seconds")
-        return None
     except Exception as e:
         print(f"[ERROR] vector search error: {e}")
         return None
 
 
-async def _pgvector_approximate_search(
+def _pgvector_approximate_search(
     query_embedding: List[float], limit: int, match_threshold: float
 ) -> List[Dict[str, Any]]:
     """
@@ -192,10 +188,10 @@ async def _pgvector_approximate_search(
             "[INFO] falling back to exact search - run migration steps 1-3 to enable fast search"
         )
         # Fall back to exact search if HNSW RPC doesn't exist
-        return await _exact_vector_search(query_embedding, limit, match_threshold)
+        return _exact_vector_search(query_embedding, limit, match_threshold)
 
 
-async def _exact_vector_search(
+def _exact_vector_search(
     query_embedding: List[float], limit: int, match_threshold: float
 ) -> List[Dict[str, Any]]:
     """Fallback to exact vector search using RPC function"""
@@ -216,7 +212,7 @@ async def _exact_vector_search(
         return []
 
 
-async def _fallback_keyword_search(query: str, limit: int) -> List[Dict[str, Any]]:
+def _fallback_keyword_search(query: str, limit: int) -> List[Dict[str, Any]]:
     """Fallback to simple keyword search when vector search fails"""
     try:
         print(f"[INFO] performing keyword fallback search for: {query}")
@@ -255,12 +251,10 @@ async def _fallback_keyword_search(query: str, limit: int) -> List[Dict[str, Any
         return []
 
 
-async def generate_ai_reply(
+def generate_ai_reply(
     note_content: str, pdf_url: str = None, scratchpad_context: str = None
 ) -> str:
     """Generate AI reply based on note content and PDF context"""
-    if not claude_client:
-        return "ai reply functionality requires anthropic api key"
 
     try:
         # Build message content with text and optional PDF
@@ -280,25 +274,31 @@ async def generate_ai_reply(
 
 """
 
-        prompt = f"""You are an AI assistant helping a researcher understand a paper. {context_section}The user has written the following new note:
+        prompt = f"""You are an AI assistant helping a researcher understand a paper {context_section}The user has written the following new note:
 
 "{note_content}"
 
 Provide a helpful response that is thoughtful but concise. Only reference other notes if they directly relate to the current note. Aim for around 50 words."""
+        
 
         content_list.append({"type": "text", "text": prompt})
-
-        # NOTE: This is a log
-        print(f"[INFO] text passed to claude: {prompt}")
-
-        # Add PDF if available
-
-        message = claude_msg("user", content_list)
-        response = claude_client.messages.create(
-            model="claude-3-5-sonnet-20241022", max_tokens=350, messages=[message]
-        )
-
-        return response.content[0].text.strip()
+        
+        # Get the configured Claude client with tools
+        # claude_msg = get_claude_msg()
+        claude_msg = Chat('claude-sonnet-4-20250514', tools=[search_vectorized_sources])
+        if not claude_msg:
+            return "Claude client not available"
+        
+        final_msg = mk_msg(content_list,)
+        # Use the synchronous toolloop
+        response = claude_msg.toolloop(final_msg)
+        
+        # Convert response to string if it's a generator or other type
+        if hasattr(response, '__iter__') and not isinstance(response, str):
+            response = ' '.join(str(part) for part in response)
+        
+        return str(response)
+        
     except Exception as e:
         print(f"[ERROR] ai reply generation error: {e}")
         return f"ai reply generation failed: {str(e)}"

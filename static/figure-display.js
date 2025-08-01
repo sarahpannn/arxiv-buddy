@@ -102,7 +102,12 @@ window.displayFigureInfo = async function(figureInfo) {
         `;
         
         console.log('Setting innerHTML...');
-        rightPane.innerHTML = html;
+        // Use helper function to preserve scratchpad button
+        if (window.updateRightPaneContent) {
+            window.updateRightPaneContent(html);
+        } else {
+            rightPane.innerHTML = html;
+        }
         console.log('Figure info display completed successfully');
         
         // Set up zoom functionality after the HTML is inserted
@@ -112,13 +117,20 @@ window.displayFigureInfo = async function(figureInfo) {
         
     } catch (error) {
         console.error('Error setting figure info HTML:', error);
-        rightPane.innerHTML = `
+        // Use helper function to preserve scratchpad button
+        const errorHtml = `
             <div style="padding: 20px; color: red;">
                 <h3>Error displaying figure</h3>
                 <p>There was an error displaying the figure information.</p>
                 <pre>${error.message}</pre>
             </div>
         `;
+        
+        if (window.updateRightPaneContent) {
+            window.updateRightPaneContent(errorHtml);
+        } else {
+            rightPane.innerHTML = errorHtml;
+        }
     }
 }
 

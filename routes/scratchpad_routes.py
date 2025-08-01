@@ -309,9 +309,6 @@ def register_scratchpad_routes(rt):
             if note.user_id != user_id:
                 return {"success": False, "error": "Access denied"}
 
-            # perform RAG search
-            search_results = await search_vectorized_sources(note.content, limit=3)
-
             # Use direct arXiv HTTPS URL for PDF context
             pdf_url = f"https://arxiv.org/pdf/{note.paper_id}"
 
@@ -324,7 +321,7 @@ def register_scratchpad_routes(rt):
                 anchor = f"Anchored to: \"{json.loads(note.anchor_data).get('selection_text', '')}\"\n\n"
                 
             # generate AI reply with PDF context from arXiv
-            ai_reply_content = await generate_ai_reply(
+            ai_reply_content = generate_ai_reply(
                 note_content=anchor + note.content if anchor else note.content,
                 pdf_url=pdf_url,
                 scratchpad_context=scratchpad_context

@@ -1,8 +1,7 @@
 import os
 from dotenv import load_dotenv
 from supabase import create_client, Client
-import anthropic
-from msglm import AnthropicMsg
+from claudette import *
 from openai import OpenAI
 
 # Load environment variables
@@ -25,15 +24,31 @@ else:
     supabase = None
     print("⚠️ Supabase credentials not found")
 
-# Initialize Claude client
+# Initialize Claude client (without tools initially to avoid circular import)
 if anthropic_api_key:
-    claude_client = anthropic.Anthropic(api_key=anthropic_api_key)
-    claude_msg = AnthropicMsg()
-    print("✅ Claude client initialized")
+    claude_msg = None  # Will be initialized later with tools
+    print("✅ Claude client base initialized")
 else:
     claude_client = None
     claude_msg = None
     print("⚠️ Anthropic API key not found")
+
+# Function to initialize Claude with tools (called after ai_service is imported)
+def initialize_claude_with_tools():
+    global claude_msg
+    if anthropic_api_key and claude_msg is None:
+        from services.ai_service import search_vectorized_sources
+        claude_msg = Chat('claude-sonnet-4-20250514', anthropic_api_key, tools=[search_vectorized_sources])
+        print("✅ Claude client initialized with tools")
+        return claude_msg
+    return claude_msg
+
+# Getter function for claude_msg (ensures it's initialized)
+def get_claude_msg():
+    global claude_msg
+    if claude_msg is None:
+        return initialize_claude_with_tools()
+    return claude_msg
 
 # Initialize OpenAI client (for embeddings)
 if openai_api_key:

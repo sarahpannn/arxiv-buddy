@@ -24,81 +24,191 @@ class ScratchpadManager {
     }
     
     createScratchpadUI() {
-        // Check if elements already exist
-        if (document.querySelector('.scratchpad-fab')) {
+        // Check if we're already integrated
+        if (document.querySelector('.scratchpad-integrated')) {
             return;
         }
         
         try {
-            // Create floating action button
-            const fab = document.createElement('button');
-            fab.className = 'scratchpad-fab';
-            fab.innerHTML = '📝';
-            fab.title = 'Open Scratchpad';
-            fab.onclick = () => this.togglePanel();
+            // Find the right pane to integrate into
+            const rightPane = document.getElementById('info-pane');
+            if (!rightPane) {
+                console.error('Right pane not found - falling back to overlay mode');
+                this.createOverlayUI();
+                return;
+            }
             
-            // Force inline styles to ensure visibility
-            fab.style.cssText = `
-                position: fixed !important;
+            // Store original right pane content
+            this.originalRightPaneContent = rightPane.innerHTML;
+            this.isIntegrated = false;
+            
+            // Create toggle button in top-right corner of right pane
+            const toggleBtn = document.createElement('button');
+            toggleBtn.className = 'scratchpad-toggle';
+            toggleBtn.innerHTML = '📝';
+            toggleBtn.title = 'Toggle Scratchpad';
+            toggleBtn.onclick = () => this.toggleIntegration();
+            
+            toggleBtn.style.cssText = `
+                position: absolute !important;
                 bottom: 20px !important;
                 right: 20px !important;
-                width: 56px !important;
-                height: 56px !important;
+                width: 52px !important;
+                height: 52px !important;
                 background: #1976d2 !important;
                 color: white !important;
                 border: none !important;
                 border-radius: 50% !important;
-                font-size: 24px !important;
+                font-size: 27px !important;
                 cursor: pointer !important;
-                z-index: 9999 !important;
+                z-index: 100 !important;
                 display: flex !important;
                 align-items: center !important;
                 justify-content: center !important;
-                box-shadow: 0 4px 12px rgba(25, 118, 210, 0.4) !important;
+                box-shadow: 0 2px 8px rgba(25, 118, 210, 0.4) !important;
+                transition: all 0.2s !important;
             `;
             
-            document.body.appendChild(fab);
-            this.fab = fab;
+            // Make right pane relative positioned for absolute button
+            rightPane.style.position = 'relative';
+            rightPane.appendChild(toggleBtn);
+            this.toggleBtn = toggleBtn;
             
-            // Create scratchpad panel with forced styles for debugging
-            const panel = document.createElement('div');
-            panel.className = 'scratchpad-panel';
-            
-            // Force visible styles for debugging
-            panel.style.cssText = `
-                position: fixed !important;
-                top: 0 !important;
-                right: 0 !important;
-                width: 400px !important;
-                height: 100vh !important;
-                background: white !important;
-                border-left: 2px solid #ccc !important;
-                z-index: 10000 !important;
-                transform: translateX(100%) !important;
-                transition: transform 0.3s ease !important;
-                display: flex !important;
-                flex-direction: column !important;
-                box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15) !important;
-            `;
-            
-            panel.innerHTML = `
-                <div class="scratchpad-header" style="padding: 20px; border-bottom: 1px solid #e0e0e0; background: #f8f9fa; display: flex; justify-content: space-between; align-items: center;">
-                    <h3 style="margin: 0; color: #1976d2; font-size: 1.2rem;">📝 Scratchpad</h3>
-                    <button class="scratchpad-close" onclick="window.scratchpad.closePanel()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
-                </div>
-                <div class="scratchpad-content" id="scratchpad-content" style="flex: 1; overflow-y: auto; padding: 20px;">
-                    <div class="scratchpad-add-note" onclick="window.scratchpad.addNote()" style="margin-top: 16px; padding: 12px; border: 2px dashed #ccc; border-radius: 8px; text-align: center; cursor: pointer; color: #666;">
-                        + Add Note
-                    </div>
-                </div>
-            `;
-            
-            document.body.appendChild(panel);
-            this.panel = panel;
+            // Create scratchpad content (initially hidden)
+            this.createScratchpadContent();
             
         } catch (error) {
-            console.error('Failed to create scratchpad UI:', error);
+            console.error('Failed to create integrated scratchpad UI:', error);
+            this.createOverlayUI(); // Fallback to overlay
         }
+    }
+    
+    createScratchpadContent() {
+        const scratchpadContent = document.createElement('div');
+        scratchpadContent.className = 'scratchpad-integrated';
+        scratchpadContent.style.cssText = `
+            display: none !important;
+            height: 100% !important;
+            flex-direction: column !important;
+            background: white !important;
+        `;
+        
+        scratchpadContent.innerHTML = `
+            <div class="scratchpad-header" style="
+                padding: 20px 60px 20px 20px !important;
+                border-bottom: 1px solid #e0e0e0 !important;
+                background: #f8f9fa !important;
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+            ">
+                <h3 style="margin: 0; color: #1976d2; font-size: 1.2rem;">📝 Scratchpad</h3>
+                <button class="scratchpad-minimize" onclick="window.scratchpad.toggleIntegration()" style="
+                    background: none !important;
+                    border: none !important;
+                    font-size: 20px !important;
+                    cursor: pointer !important;
+                    color: #666 !important;
+                    position: absolute !important;
+                    top: 15px !important;
+                    right: 15px !important;
+                    width: 30px !important;
+                    height: 30px !important;
+                    border-radius: 50% !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                ">×</button>
+            </div>
+            <div class="scratchpad-content" id="scratchpad-content" style="
+                flex: 1 !important;
+                overflow-y: auto !important;
+                padding: 20px !important;
+            ">
+                <div class="scratchpad-add-note" onclick="window.scratchpad.addNote()" style="
+                    margin-top: 16px !important;
+                    padding: 12px !important;
+                    border: 2px dashed #ccc !important;
+                    border-radius: 8px !important;
+                    text-align: center !important;
+                    cursor: pointer !important;
+                    color: #666 !important;
+                ">
+                    + Add Note
+                </div>
+            </div>
+        `;
+        
+        const rightPane = document.getElementById('info-pane');
+        rightPane.appendChild(scratchpadContent);
+        this.scratchpadContent = scratchpadContent;
+    }
+    
+    createOverlayUI() {
+        // Fallback to original overlay implementation
+        // Create floating action button
+        const fab = document.createElement('button');
+        fab.className = 'scratchpad-fab';
+        fab.innerHTML = '📝';
+        fab.title = 'Open Scratchpad';
+        fab.onclick = () => this.togglePanel();
+        
+        fab.style.cssText = `
+            position: fixed !important;
+            bottom: 20px !important;
+            right: 20px !important;
+            width: 56px !important;
+            height: 56px !important;
+            background: #1976d2 !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 50% !important;
+            font-size: 24px !important;
+            cursor: pointer !important;
+            z-index: 9999 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            box-shadow: 0 4px 12px rgba(25, 118, 210, 0.4) !important;
+        `;
+        
+        document.body.appendChild(fab);
+        this.fab = fab;
+        
+        // Create overlay panel
+        const panel = document.createElement('div');
+        panel.className = 'scratchpad-panel';
+        
+        panel.style.cssText = `
+            position: fixed !important;
+            top: 0 !important;
+            right: 0 !important;
+            width: 400px !important;
+            height: 100vh !important;
+            background: white !important;
+            border-left: 2px solid #ccc !important;
+            z-index: 10000 !important;
+            transform: translateX(100%) !important;
+            transition: transform 0.3s ease !important;
+            display: flex !important;
+            flex-direction: column !important;
+            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15) !important;
+        `;
+        
+        panel.innerHTML = `
+            <div class="scratchpad-header" style="padding: 20px; border-bottom: 1px solid #e0e0e0; background: #f8f9fa; display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0; color: #1976d2; font-size: 1.2rem;">📝 Scratchpad</h3>
+                <button class="scratchpad-close" onclick="window.scratchpad.closePanel()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+            </div>
+            <div class="scratchpad-content" id="scratchpad-content" style="flex: 1; overflow-y: auto; padding: 20px;">
+                <div class="scratchpad-add-note" onclick="window.scratchpad.addNote()" style="margin-top: 16px; padding: 12px; border: 2px dashed #ccc; border-radius: 8px; text-align: center; cursor: pointer; color: #666;">
+                    + Add Note
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(panel);
+        this.panel = panel;
     }
     
     bindEvents() {
@@ -774,17 +884,61 @@ class ScratchpadManager {
         popup.addEventListener('click', () => popup.remove());
     }
     
-    togglePanel() {
-        if (this.isOpen) {
-            this.closePanel();
+    toggleIntegration() {
+        console.log('🚀 SCRATCHPAD: Toggling integration');
+        const rightPane = document.getElementById('info-pane');
+        
+        if (!this.isIntegrated) {
+            // Show scratchpad, hide original content
+            this.scratchpadContent.style.display = 'flex';
+            this.toggleBtn.style.display = 'none';
+            
+            // Hide all other children of right pane except scratchpad
+            Array.from(rightPane.children).forEach(child => {
+                if (!child.classList.contains('scratchpad-integrated') && 
+                    !child.classList.contains('scratchpad-toggle')) {
+                    child.style.display = 'none';
+                }
+            });
+            
+            this.isIntegrated = true;
+            this.loadNotes();
+            console.log('✅ SCRATCHPAD: Integrated into right pane');
         } else {
-            this.openPanel();
+            // Hide scratchpad, show original content
+            this.scratchpadContent.style.display = 'none';
+            this.toggleBtn.style.display = 'flex';
+            
+            // Show all other children of right pane
+            Array.from(rightPane.children).forEach(child => {
+                if (!child.classList.contains('scratchpad-integrated')) {
+                    child.style.display = '';
+                }
+            });
+            
+            this.isIntegrated = false;
+            console.log('✅ SCRATCHPAD: Minimized from right pane');
+        }
+    }
+    
+    togglePanel() {
+        // For compatibility with overlay mode
+        if (this.scratchpadContent) {
+            this.toggleIntegration();
+        } else if (this.panel) {
+            if (this.isOpen) {
+                this.closePanel();
+            } else {
+                this.openPanel();
+            }
         }
     }
     
     openPanel() {
         console.log('🚀 SCRATCHPAD: Opening panel');
-        if (this.panel) {
+        if (this.scratchpadContent) {
+            this.toggleIntegration();
+        } else if (this.panel) {
             this.panel.style.transform = 'translateX(0)';
             this.isOpen = true;
             this.loadNotes();
@@ -796,7 +950,9 @@ class ScratchpadManager {
     
     closePanel() {
         console.log('🚀 SCRATCHPAD: Closing panel');
-        if (this.panel) {
+        if (this.scratchpadContent && this.isIntegrated) {
+            this.toggleIntegration();
+        } else if (this.panel) {
             this.panel.style.transform = 'translateX(100%)';
             this.isOpen = false;
             console.log('✅ SCRATCHPAD: Panel closed');
@@ -806,12 +962,28 @@ class ScratchpadManager {
     }
     
     updateFAB() {
-        if (this.notes && this.notes.length > 0) {
-            this.fab.classList.add('has-notes');
-            this.fab.title = `Scratchpad (${this.notes.length} notes)`;
-        } else {
-            this.fab.classList.remove('has-notes');
-            this.fab.title = 'Scratchpad';
+        const hasNotes = this.notes && this.notes.length > 0;
+        
+        // Update toggle button if using integrated mode
+        if (this.toggleBtn) {
+            if (hasNotes) {
+                this.toggleBtn.style.background = '#1976d2';
+                this.toggleBtn.title = `Scratchpad (${this.notes.length} notes)`;
+            } else {
+                this.toggleBtn.style.background = '#1976d2';
+                this.toggleBtn.title = 'Scratchpad';
+            }
+        }
+        
+        // Update FAB if using overlay mode
+        if (this.fab) {
+            if (hasNotes) {
+                this.fab.classList.add('has-notes');
+                this.fab.title = `Scratchpad (${this.notes.length} notes)`;
+            } else {
+                this.fab.classList.remove('has-notes');
+                this.fab.title = 'Scratchpad';
+            }
         }
     }
     
