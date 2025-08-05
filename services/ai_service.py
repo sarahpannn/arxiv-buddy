@@ -253,7 +253,7 @@ def _fallback_keyword_search(query: str, limit: int) -> List[Dict[str, Any]]:
 
 def generate_ai_reply(
     note_content: str, pdf_url: str = None, scratchpad_context: str = None
-) -> str:
+):
     """Generate AI reply based on note content and PDF context"""
 
     try:
@@ -279,26 +279,34 @@ def generate_ai_reply(
 "{note_content}"
 
 Provide a helpful response that is thoughtful but concise. Only reference other notes if they directly relate to the current note. Aim for around 50 words."""
-        
 
         content_list.append({"type": "text", "text": prompt})
-        
+
         # Get the configured Claude client with tools
         # claude_msg = get_claude_msg()
-        claude_msg = Chat('claude-sonnet-4-20250514', tools=[search_vectorized_sources])
+        claude_msg = Chat("claude-sonnet-4-20250514", tools=[search_vectorized_sources])
         if not claude_msg:
             return "Claude client not available"
-        
-        final_msg = mk_msg(content_list,)
-        # Use the synchronous toolloop
+        # the response from claude's toolloop is a messages object that contains
+        # the full conversation history and metadata. we should pass this through
+        # to let the routes handle formatting, rather than converting to string here
+        final_msg = mk_msg(
+            content_list,
+        )
         response = claude_msg.toolloop(final_msg)
-        
-        # Convert response to string if it's a generator or other type
-        if hasattr(response, '__iter__') and not isinstance(response, str):
-            response = ' '.join(str(part) for part in response)
-        
-        return str(response)
-        
+        messages = list(claude_msg.toolloop(final_msg))
+
+        # get the most recent message
+        last_msg = messages[-1]
+
+        # extract any text blocks in that message
+        texts = [b.text for b in last_msg.content]
+
+        # join them (in case there's more than one)
+        latest_output = "\n".join(texts)
+
+        print(latest_output)
+        return latest_output
     except Exception as e:
         print(f"[ERROR] ai reply generation error: {e}")
         return f"ai reply generation failed: {str(e)}"
