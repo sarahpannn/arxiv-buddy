@@ -1,0 +1,353 @@
+/* Citation Analysis Styles */
+
+.citation-panel {
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  margin: 20px 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* Modal-specific styles */
+.citation-modal-content {
+  padding: 30px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  height: 100%;
+  overflow-y: auto;
+}
+
+#citation-analysis-overlay {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+#citation-analysis-modal .citation-status {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+#citation-analysis-modal .citation-controls {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.citation-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  background: #fff;
+  border-bottom: 1px solid #dee2e6;
+  border-radius: 8px 8px 0 0;
+}
+
+.citation-panel-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 1.2em;
+}
+
+.citation-toggle {
+  background: none;
+  border: none;
+  font-size: 1.2em;
+  cursor: pointer;
+  color: #666;
+  padding: 5px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.citation-toggle:hover {
+  background-color: #f0f0f0;
+}
+
+.citation-content {
+  padding: 20px;
+}
+
+.citation-status {
+  margin-bottom: 15px;
+  padding: 15px;
+  background: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+}
+
+.citation-controls {
+  margin-bottom: 20px;
+}
+
+.citation-controls .btn {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.95em;
+  transition: background-color 0.2s;
+}
+
+.citation-controls .btn:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+.citation-controls .btn:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+}
+
+.analysis-summary {
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+  border-radius: 6px;
+  padding: 15px;
+}
+
+.analysis-summary p {
+  margin: 5px 0;
+  color: #155724;
+}
+
+.analysis-summary strong {
+  color: #0f5132;
+}
+
+.analyzing-state {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 6px;
+  padding: 15px;
+  text-align: center;
+}
+
+.analyzing-state p {
+  margin: 10px 0;
+  color: #856404;
+}
+
+.progress-indicator {
+  width: 100%;
+  height: 6px;
+  background: #e9ecef;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 15px;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #007bff, #0056b3);
+  width: 0%;
+  animation: progress 2s ease-in-out infinite;
+}
+
+@keyframes progress {
+  0% {
+    width: 0%;
+  }
+  50% {
+    width: 70%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+.error-message {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 6px;
+  padding: 15px;
+  color: #721c24;
+}
+
+.citation-lists {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+@media (max-width: 768px) {
+  .citation-lists {
+    grid-template-columns: 1fr;
+  }
+}
+
+.paper-list h4 {
+  margin: 0 0 15px 0;
+  color: #333;
+  font-size: 1.1em;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #007bff;
+}
+
+.paper-item {
+  background: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  margin-bottom: 15px;
+  padding: 15px;
+  transition: box-shadow 0.2s;
+}
+
+.paper-item:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.paper-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.paper-title {
+  margin: 0;
+  font-size: 1em;
+  color: #333;
+  line-height: 1.3;
+  flex: 1;
+  margin-right: 15px;
+}
+
+.paper-metrics {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.metric {
+  background: #e9ecef;
+  color: #495057;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  white-space: nowrap;
+}
+
+.paper-authors {
+  color: #666;
+  font-size: 0.9em;
+  margin: 8px 0;
+  font-style: italic;
+}
+
+.paper-abstract {
+  color: #666;
+  font-size: 0.85em;
+  line-height: 1.4;
+  margin: 10px 0;
+}
+
+.paper-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.arxiv-link {
+  color: #007bff;
+  text-decoration: none;
+  font-size: 0.85em;
+  padding: 4px 8px;
+  border: 1px solid #007bff;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.arxiv-link:hover {
+  background: #007bff;
+  color: white;
+}
+
+.load-paper-btn {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.load-paper-btn:hover {
+  background: #1e7e34;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .citation-panel-header {
+    padding: 12px 15px;
+  }
+
+  .citation-content {
+    padding: 15px;
+  }
+
+  .paper-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .paper-metrics {
+    align-items: flex-start;
+    flex-direction: row;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .paper-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* Integration with existing paper viewer styles */
+.paper-content .citation-panel {
+  margin: 20px 0;
+  max-width: 100%;
+}
+
+/* Integration with context drawer */
+#context-drawer .citation-panel {
+  margin: 10px 0;
+  border-radius: 6px;
+}
+
+/* When placed in library status area */
+#library-status .citation-panel {
+  margin: 15px auto;
+  max-width: 900px;
+}
+
+/* Better responsiveness for smaller containers */
+.citation-panel {
+  min-width: 300px;
+}
+
+/* Utility classes */
+.text-muted {
+  color: #6c757d !important;
+}
+
+.text-success {
+  color: #28a745 !important;
+}
+
+.text-warning {
+  color: #ffc107 !important;
+}
+
+.text-danger {
+  color: #dc3545 !important;
+}
