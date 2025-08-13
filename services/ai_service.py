@@ -10,6 +10,9 @@ _search_cache: Dict[str, Dict[str, Any]] = {}
 CACHE_TTL_MINUTES = 15
 MAX_CACHE_SIZE = 100
 
+# Track sources used in the current conversation
+_current_sources_used = []
+
 
 def _get_cache_key(query: str, limit: int, match_threshold: float) -> str:
     """Generate cache key for search parameters"""
@@ -95,15 +98,23 @@ def search_vectorized_sources(
                 "results": vector_results,
                 "timestamp": datetime.now(),
             }
+            # Track sources for current conversation
+            _current_sources_used.extend(vector_results)
             return vector_results
 
         # Fallback to keyword search if vector search failed
         print("[INFO] vector search failed, falling back to keyword search")
-        return _fallback_keyword_search(query, limit)
+        fallback_results = _fallback_keyword_search(query, limit)
+        if fallback_results:
+            _current_sources_used.extend(fallback_results)
+        return fallback_results
 
     except Exception as e:
         print(f"[ERROR] search error: {e}")
-        return _fallback_keyword_search(query, limit)
+        fallback_results = _fallback_keyword_search(query, limit)
+        if fallback_results:
+            _current_sources_used.extend(fallback_results)
+        return fallback_results
 
 
 def _try_vector_search_with_timeout(
@@ -255,6 +266,7 @@ def generate_ai_reply(
     note_content: str, pdf_url: str = None, scratchpad_context: str = None
 ) -> str:
     """Generate AI reply based on note content and PDF context"""
+    global _current_sources_used
 
     try:
         # Build message content with text and optional PDF
@@ -289,16 +301,135 @@ Provide a helpful response that is thoughtful but concise. Only reference other 
         if not claude_msg:
             return "Claude client not available"
         
-        final_msg = mk_msg(content_list,)
-        # Use the synchronous toolloop
-        response = claude_msg.toolloop(final_msg)
+        # Clear sources from previous conversations
+        _current_sources_used = []
         
-        # Convert response to string if it's a generator or other type
-        if hasattr(response, '__iter__') and not isinstance(response, str):
-            response = ' '.join(str(part) for part in response)
+        # Create a simple prompt that Claude can answer directly
+        simple_prompt = f"""You are an AI assistant helping a researcher understand a paper. 
+
+The user has written this note: "{note_content}"
+
+Please provide a helpful, thoughtful, and concise response (around 50 words). If you need to search for information to provide a better answer, use the search_vectorized_sources tool.
+
+{context_section.strip() if 'context_section' in locals() else ''}"""
+
+        # Use toolloop but extract just the final response
+        response = claude_msg.toolloop(simple_prompt)
         
-        return str(response)
+        # Extract the final assistant response from the toolloop
+        response_text = _extract_final_response(response, claude_msg)
+        print(f"[DEBUG] Extracted response text: {response_text[:200]}...")
+        print(f"[DEBUG] Sources used: {len(_current_sources_used)}")
+        
+        # Format with sources that were used during tool calls
+        formatted_response = _format_response_with_sources(response_text, _current_sources_used)
+        
+        return formatted_response
         
     except Exception as e:
         print(f"[ERROR] ai reply generation error: {e}")
         return f"ai reply generation failed: {str(e)}"
+
+
+def _extract_final_response(toolloop_response, claude_msg):
+    """Extract just the final LLM response from toolloop, ignoring tool calls"""
+    try:
+        # Get the conversation history from the chat object
+        if hasattr(claude_msg, 'h') and claude_msg.h:
+            messages = claude_msg.h
+            
+            # Look for the last assistant message that's not a tool call
+            for message in reversed(messages):
+                if (hasattr(message, 'role') and message.role == 'assistant' and 
+                    hasattr(message, 'content') and message.content and
+                    not hasattr(message, 'tool_calls')):
+                    
+                    # Extract text content
+                    if isinstance(message.content, list):
+                        # Content is a list of content blocks
+                        text_content = ""
+                        for block in message.content:
+                            if hasattr(block, 'text'):
+                                text_content += block.text
+                            elif hasattr(block, 'type') and block.type == 'text':
+                                text_content += str(block.text if hasattr(block, 'text') else block)
+                        if text_content.strip():
+                            return text_content.strip()
+                    elif isinstance(message.content, str):
+                        return message.content.strip()
+                    else:
+                        return str(message.content).strip()
+        
+        # Fallback: if we can't parse the conversation, look at the response directly
+        if toolloop_response:
+            if hasattr(toolloop_response, '__iter__') and not isinstance(toolloop_response, str):
+                response_str = ' '.join(str(part) for part in toolloop_response)
+            else:
+                response_str = str(toolloop_response)
+            
+            # Try to extract just the assistant's final response from the string
+            # Look for patterns that indicate the final response
+            lines = response_str.split('\n')
+            for i, line in enumerate(lines):
+                # Skip tool-related lines
+                if ('ToolUseBlock' in line or 'tool_use' in line or 
+                    'search_vectorized_sources' in line or 'role=' in line):
+                    continue
+                # Look for actual response content
+                if line.strip() and not line.startswith('[') and not line.startswith('{'):
+                    # This might be the start of the actual response
+                    remaining_lines = lines[i:]
+                    clean_response = []
+                    for remaining_line in remaining_lines:
+                        if ('ToolUseBlock' in remaining_line or 'role=' in remaining_line or 
+                            remaining_line.strip().startswith('{')):
+                            break
+                        if remaining_line.strip():
+                            clean_response.append(remaining_line.strip())
+                    
+                    if clean_response:
+                        return ' '.join(clean_response)
+            
+            return response_str
+        
+        return "Unable to generate response"
+    
+    except Exception as e:
+        print(f"[DEBUG] Error extracting final response: {e}")
+        # Ultimate fallback
+        if toolloop_response:
+            if hasattr(toolloop_response, '__iter__') and not isinstance(toolloop_response, str):
+                return ' '.join(str(part) for part in toolloop_response)
+            else:
+                return str(toolloop_response)
+        return "Error generating response"
+
+
+def _format_response_with_sources(response_text, sources_used):
+    """Format the response with clean source citations at the bottom"""
+    if not sources_used:
+        return response_text
+    
+    # Deduplicate sources by URL
+    unique_sources = {}
+    for source in sources_used:
+        if isinstance(source, dict) and 'url' in source:
+            url = source['url']
+            if url not in unique_sources:
+                unique_sources[url] = source
+    
+    if not unique_sources:
+        return response_text
+    
+    # Format the response with sources
+    formatted_response = response_text.strip()
+    
+    if unique_sources:
+        formatted_response += "\n\n**Sources:**\n"
+        for i, (url, source) in enumerate(unique_sources.items(), 1):
+            source_name = source.get('source_name', 'Unknown Source')
+            # Clean up the URL (remove query parameters for cleaner display)
+            clean_url = url.split('?')[0] if '?' in url else url
+            formatted_response += f"{i}. {source_name}: {clean_url}\n"
+    
+    return formatted_response
