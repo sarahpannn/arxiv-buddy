@@ -5,18 +5,19 @@ from models import scratchpad_notes
 from services.ai_service import search_vectorized_sources, generate_ai_reply
 
 
-def get_scratchpad_context(user_id: str, paper_id: str, exclude_note_id: int = None) -> str:
+def get_scratchpad_context(
+    user_id: str, paper_id: str, exclude_note_id: int = None
+) -> str:
     """Get formatted scratchpad context for AI, excluding AI replies and optionally a specific note"""
     try:
         where_clause = f"user_id = '{user_id}' AND paper_id = '{paper_id}' AND is_deleted = 0 AND note_type != 'ai_reply'"
         if exclude_note_id:
             where_clause += f" AND id != {exclude_note_id}"
-            
+
         notes = scratchpad_notes(
-            where=where_clause,
-            order_by="position ASC, created_at ASC"
+            where=where_clause, order_by="position ASC, created_at ASC"
         )
-        
+
         context = ""
         for note in notes:
             context += f"• "
@@ -27,7 +28,7 @@ def get_scratchpad_context(user_id: str, paper_id: str, exclude_note_id: int = N
                 except:
                     pass
             context += f"{note.content}\n"
-        
+
         return context.strip() if context else None
     except Exception as e:
         print(f"❌ Error getting scratchpad context: {e}")
@@ -36,7 +37,7 @@ def get_scratchpad_context(user_id: str, paper_id: str, exclude_note_id: int = N
 
 def register_scratchpad_routes(rt):
     """Register scratchpad-related routes"""
-    
+
     @rt("/api/scratchpad/test")
     def test_scratchpad_api():
         """Test endpoint to verify scratchpad API is working"""
@@ -48,11 +49,16 @@ def register_scratchpad_routes(rt):
 
         user_id = session.get("user_id") if session else None
 
-        if not user_id: return {"success": False, "error": "Authentication required"}
+        if not user_id:
+            return {"success": False, "error": "Authentication required"}
 
         try:
-            query = f"user_id = '{user_id}' AND paper_id = '{paper_id}' AND is_deleted = 0"
-            notes = scratchpad_notes(where=query, order_by="position ASC, created_at ASC")
+            query = (
+                f"user_id = '{user_id}' AND paper_id = '{paper_id}' AND is_deleted = 0"
+            )
+            notes = scratchpad_notes(
+                where=query, order_by="position ASC, created_at ASC"
+            )
             notes_list = list(notes)
 
             # organize notes hierarchically with replies
@@ -102,11 +108,14 @@ def register_scratchpad_routes(rt):
                 "success": True,
                 "notes": root_notes,
             }
-            print(f"✅ SCRATCHPAD API: Returning result with {len(root_notes)} root notes")
+            print(
+                f"✅ SCRATCHPAD API: Returning result with {len(root_notes)} root notes"
+            )
             return result
         except Exception as e:
             print(f"❌ SCRATCHPAD API: Error: {e}")
             import traceback
+
             traceback.print_exc()
             return {"success": False, "error": str(e)}
 
@@ -140,7 +149,9 @@ def register_scratchpad_routes(rt):
                 content=data.get("content", ""),
                 note_type=data.get("note_type", "unanchored"),
                 anchor_data=(
-                    json.dumps(data.get("anchor_data")) if data.get("anchor_data") else None
+                    json.dumps(data.get("anchor_data"))
+                    if data.get("anchor_data")
+                    else None
                 ),
                 created_at=datetime.now().isoformat(),
                 updated_at=datetime.now().isoformat(),
@@ -149,7 +160,9 @@ def register_scratchpad_routes(rt):
                 parent_note_id=parent_note_id,
                 reply_type=reply_type,
                 ai_metadata=(
-                    json.dumps(data.get("ai_metadata")) if data.get("ai_metadata") else None
+                    json.dumps(data.get("ai_metadata"))
+                    if data.get("ai_metadata")
+                    else None
                 ),
             )
 
@@ -229,6 +242,7 @@ def register_scratchpad_routes(rt):
         except Exception as e:
             print(f"❌ DELETE API: Error: {e}")
             import traceback
+
             traceback.print_exc()
             return {"success": False, "error": str(e)}
 
@@ -251,9 +265,7 @@ def register_scratchpad_routes(rt):
                     content += f"## Note {note.position + 1}\n"
                     if note.note_type == "anchored" and note.anchor_data:
                         anchor = json.loads(note.anchor_data)
-                        content += (
-                            f"**Anchored to:** \"{anchor.get('selection_text', '')}\"\n\n"
-                        )
+                        content += f"**Anchored to:** \"{anchor.get('selection_text', '')}\"\n\n"
                     content += f"{note.content}\n\n"
                     content += f"*Created: {note.created_at}*\n\n---\n\n"
 
@@ -265,7 +277,9 @@ def register_scratchpad_routes(rt):
                             "content": note.content,
                             "note_type": note.note_type,
                             "anchor_data": (
-                                json.loads(note.anchor_data) if note.anchor_data else None
+                                json.loads(note.anchor_data)
+                                if note.anchor_data
+                                else None
                             ),
                             "created_at": note.created_at,
                             "position": note.position,
@@ -319,12 +333,12 @@ def register_scratchpad_routes(rt):
             anchor = ""
             if note.note_type == "anchored" and note.anchor_data:
                 anchor = f"Anchored to: \"{json.loads(note.anchor_data).get('selection_text', '')}\"\n\n"
-                
+
             # generate AI reply with PDF context from arXiv
             ai_reply_content = generate_ai_reply(
                 note_content=anchor + note.content if anchor else note.content,
                 pdf_url=pdf_url,
-                scratchpad_context=scratchpad_context
+                scratchpad_context=scratchpad_context,
             )
 
             # create the AI reply note
