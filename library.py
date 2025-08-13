@@ -62,11 +62,11 @@ def _render_library_items(library_items):
                 ),
                 Div(
                     A("Read", href=f"/load_paper?arxiv_id={item.arxiv_id}", 
-                      style="display: inline-block; padding: 8px 16px; background: #4285f4; color: white; text-decoration: none; border-radius: 4px; margin: 4px;"),
+                      style="display: inline-block; padding: 8px 16px; background: #4285f4; color: white; text-decoration: none; border-radius: 4px; margin: 4px; text-align: center;"),
                     Button("Remove", 
                            hx_delete=f"/library/{item.id}",
                            hx_target="#library-items",
-                           style="padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 4px; margin: 4px; cursor: pointer;"),
+                           style="padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 4px; margin: 4px; cursor: pointer; text-align: center;"),
                     style="display: flex; flex-direction: column;"
                 ),
                 style="display: flex; justify-content: space-between; align-items: center; padding: 16px; border: 1px solid #eee; border-radius: 8px; margin-bottom: 12px; background: #fafbfc;"
