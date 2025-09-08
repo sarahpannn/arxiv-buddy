@@ -278,9 +278,9 @@ def generate_ai_reply(
 
 "{note_content}"
 
-Provide a helpful response that is thoughtful but concise. Only reference other notes if they directly relate to the current note. Aim for around 50 words."""
+Provide a helpful response that is thoughtful but concise. Only reference other notes if they directly relate to the current note. Aim for around 50 words. If you use a tool search, hyperlink the link of the source you found it in."""
 
-        content_list.append({"type": "text", "text": prompt})
+        content_list.append({"type": "text", "text": prompt, "cache_control": {"type": "ephemeral"}})
 
         # Get the configured Claude client with tools
         # claude_msg = get_claude_msg()
@@ -293,7 +293,7 @@ Provide a helpful response that is thoughtful but concise. Only reference other 
         final_msg = mk_msg(
             content_list,
         )
-        response = claude_msg.toolloop(final_msg)
+
         messages = list(claude_msg.toolloop(final_msg))
 
         # get the most recent message

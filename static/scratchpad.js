@@ -558,6 +558,18 @@ class ScratchpadManager {
         }
     }
     
+    processHyperlinks(text) {
+        if (!text) return text;
+        
+        // Convert markdown links [text](url) to HTML first
+        text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+        
+        // Convert plain URLs to clickable links, but avoid URLs already inside href attributes
+        text = text.replace(/(^|[^"])https?:\/\/[^\s<>"]+(?![^<]*<\/a>)/g, '$1<a href="$&" target="_blank" rel="noopener noreferrer">$&</a>');
+        
+        return text;
+    }
+    
     renderNotes() {
         const content = document.getElementById('scratchpad-content');
         const addButton = content.querySelector('.scratchpad-add-note');
@@ -712,10 +724,13 @@ class ScratchpadManager {
                 border-radius: 4px !important;
                 border: 1px solid transparent !important;
             ">
-                ${note.content || 'Click to add note...'}
             </div>
             ${replyControls}
         `;
+        
+        // Set content with processed hyperlinks
+        const contentDiv = div.querySelector('.scratchpad-note-content');
+        contentDiv.innerHTML = this.processHyperlinks(note.content || 'Click to add note...');
         
         // Add replies if they exist
         if (note.replies && note.replies.length > 0) {
